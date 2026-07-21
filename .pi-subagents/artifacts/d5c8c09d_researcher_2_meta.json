@@ -1,0 +1,131 @@
+{
+  "runId": "d5c8c09d",
+  "agent": "researcher",
+  "task": "RED-TEAM the novelty claim of the 'predictability-aware training' project (context in /home/spencer/Repositories/predictability-aware-training/RESEARCH.md — read it first). The claim: no prior work folds expert-activation prediction accuracy into an MoE LLM's OWN training loss so the big model is optimized to BE predictable (all prior work trains predictors post-hoc against frozen models). Adversarially search for prior art that would invalidate or scope this claim: (1) any paper jointly training a router-prediction/lookahead module WITH the main model where gradients shape the main model's routing (check Pre-gated MoE 2205.10034 carefully — how exactly is its pre-gate trained? does anything shape the backbone?); (2) 'routing regularization', 'router smoothing', 'temporal consistency of expert routing', 'predictable routing', 'cache-aware routing training', 'locality-aware MoE training'; (3) speculative-decoding-style co-training of drafter+target applied to MoE experts; (4) industry/blog precedents (e.g., anything from DeepSeek/Qwen/Mistral tech reports about training for inference-friendly routing); (5) also verify our SOTA-control choice: arXiv 2511.10676 (pre-attention linear predictor, ranking-aware loss) — is that really the strongest published post-hoc predictor protocol, or is there something stronger we should compare against? Return: verdict on novelty (stands / weakened / dead), the closest 3-5 works with one-paragraph 'how it differs', and any stronger baseline we should implement.\n\n---\nUpdate progress at: /home/spencer/Repositories/predictability-aware-training/.pi-subagents/artifacts/progress/d5c8c09d/progress.md\n\n---\n**Output:**\nWrite your findings to exactly this path: /home/spencer/Repositories/predictability-aware-training/.pi-subagents/artifacts/outputs/d5c8c09d/research.md\nThis path is authoritative for this run.\nIgnore any other output filename or output path mentioned elsewhere, including output destinations in the base agent prompt, system prompt, or task instructions.",
+  "exitCode": 0,
+  "usage": {
+    "input": 61253,
+    "output": 6503,
+    "cacheRead": 160256,
+    "cacheWrite": 0,
+    "cost": 0.32938080000000003,
+    "turns": 7
+  },
+  "model": "openrouter/moonshotai/kimi-k3:medium",
+  "attemptedModels": [
+    "openrouter/moonshotai/kimi-k3:medium"
+  ],
+  "modelAttempts": [
+    {
+      "model": "openrouter/moonshotai/kimi-k3:medium",
+      "success": true,
+      "exitCode": 0,
+      "usage": {
+        "input": 61253,
+        "output": 6503,
+        "cacheRead": 160256,
+        "cacheWrite": 0,
+        "cost": 0.32938080000000003,
+        "turns": 7
+      }
+    }
+  ],
+  "durationMs": 205089,
+  "toolCount": 7,
+  "acceptance": {
+    "status": "attested",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "attested",
+      "explicit": false,
+      "inferredReason": [
+        "read-only/reviewer-style agent"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return concrete findings with file paths and severity when applicable",
+          "evidence": [
+            "review-findings",
+            "residual-risks"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "review-findings",
+        "residual-risks"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "read-only/reviewer-style agent"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return concrete findings with file paths and severity when applicable",
+        "evidence": [
+          "review-findings",
+          "residual-risks"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [],
+    "verifyRuns": [],
+    "childReport": {
+      "criteriaSatisfied": [
+        {
+          "id": "criterion-1",
+          "status": "satisfied",
+          "evidence": "Concrete findings delivered in .pi-subagents/artifacts/outputs/d5c8c09d/research.md: verdict (weakened), 5 closest works with one-paragraph differentiators, citation-error fix (2205.10034 is SE-MoE, not Pre-gated MoE = 2308.12066), severity-ranked threats (StickyMoE = blocker-level prior art; Pre-gated MoE/Oracle-MoE/ReMoE = framing threats), and stronger-baseline recommendations (StickyMoE loss, ReMoE router-only fine-tune, MoE-Beyond protocol)."
+        }
+      ],
+      "changedFiles": [
+        ".pi-subagents/artifacts/outputs/d5c8c09d/research.md",
+        ".pi-subagents/artifacts/progress/d5c8c09d/progress.md"
+      ],
+      "testsAddedOrUpdated": [],
+      "commandsRun": [
+        {
+          "command": "read RESEARCH.md",
+          "result": "passed",
+          "summary": "Extracted the novelty claim and prior-art table to attack"
+        },
+        {
+          "command": "web_search (4 queries: pre-gate training, routing regularization, spec-dec co-training, industry tech reports)",
+          "result": "passed",
+          "summary": "Surfaced StickyMoE, Halfway SD, StableMoE; confirmed Pre-gated MoE true arXiv ID"
+        },
+        {
+          "command": "fetch_content + get_search_content on arXiv 2308.12066 and 2607.08780",
+          "result": "passed",
+          "summary": "Full-text verification of pre-gate training procedure and StickyMoE loss/results"
+        }
+      ],
+      "validationOutput": [
+        "research.md written (11.9 KB) with Summary/Findings/Sources/Gaps structure, inline citations, re-scoped claim, and baseline recommendations"
+      ],
+      "residualRisks": [
+        "Oracle-MoE and ReMoE read only via StickyMoE's related-work section; their primary sources unverified",
+        "MoE-Beyond vs 2511.10676 head-to-head unresolved (different eval protocols) — requires running both predictors",
+        "StickyMoE is very recent (Jul 2026) and small-scale only; its threat level may shift on closer reading or at Qwen3-30B scale",
+        "GLM-5.2 tech report (Colibri's target model) not searched for inference-friendly-routing training claims"
+      ],
+      "noStagedFiles": true,
+      "diffSummary": "Added adversarial prior-art research brief and progress log under .pi-subagents/artifacts/",
+      "reviewFindings": [
+        "blocker: RESEARCH.md:15 - Pre-gated MoE mis-cited as arXiv 2205.10034 (that is SE-MoE); correct ID is 2308.12066",
+        "blocker: RESEARCH.md:44 - 'No found work... All existing work treats the model as fixed' is falsified by StickyMoE (2607.08780), Oracle-MoE (2025), ReMoE (2026); claim must be re-scoped to predictor-accuracy-as-loss",
+        "major: RESEARCH.md:28 - Pre-gated MoE characterization 'pre-gate adapts to the model, not vice versa' is inaccurate; pre-gate is fine-tuned end-to-end with the backbone",
+        "major: SOTA control 2511.10676 is not unambiguously strongest; MoE-Beyond and PreScope protocols should be added as baselines",
+        "minor: no implementation/test code exists in repo to validate against"
+      ],
+      "manualNotes": "Recommend immediate follow-up: implement StickyMoE consistency loss as an ablation (one hyperparameter, trivial cost) before any paper writing — it is the baseline reviewers will demand, and showing our predictor-accuracy loss beats or stacks with it is the crux experiment."
+    }
+  },
+  "transcriptPath": "/home/spencer/Repositories/predictability-aware-training/.pi-subagents/artifacts/d5c8c09d_researcher_2_transcript.jsonl",
+  "timestamp": 1784669933723
+}

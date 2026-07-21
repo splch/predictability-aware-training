@@ -25,6 +25,7 @@ class Config:
     horizons: tuple = (1,)    # layers-ahead to predict
     lambda_pred: float = 0.0  # predictability loss weight (0 = baseline)
     lambda_bal: float = 0.01  # load-balancing aux loss weight
+    lambda_sticky: float = 0.0  # StickyMoE-style temporal consistency loss
     dropout: float = 0.0
 
 
@@ -78,10 +79,14 @@ class MoEFFN(nn.Module):
             w = topk_w[sel] * (topk_idx[sel] == e).float()
             out[sel] += h * w.sum(dim=-1, keepdim=True)
 
-        # Switch-style load-balancing loss (top-1 formulation)
-        top1 = torch.zeros_like(probs).scatter_(1, logits.argmax(dim=-1, keepdim=True), 1.0)
-        bal = cfg.n_experts * (probs.mean(0) * top1.mean(0)).sum()
-        return out.view(B, T, C), topk_idx, probs, bal
+        # Load-balancing loss: soft importance x top-k dispatch fraction
+        f = torch.zeros_like(probs).scatter_add_(
+            1, topk_idx, torch.ones_like(topk_w)).mean(0) / cfg.top_k
+        bal = cfg.n_experts * (probs.mean(0) * f).sum()
+        # StickyMoE-style routing consistency between consecutive tokens
+        p = probs.view(B, T, -1)
+        sticky = (p[:, 1:] - p[:, :-1]).pow(2).mean()
+        return out.view(B, T, C), topk_idx, probs, bal, sticky
 
 
 class Block(nn.Module):
@@ -95,8 +100,8 @@ class Block(nn.Module):
     def forward(self, x):
         x = x + self.attn(self.ln1(x))
         h = self.ln2(x)  # pre-MoE hidden state = predictor input
-        ffn, topk_idx, probs, bal = self.moe(h)
-        return x + ffn, h, topk_idx, bal
+        ffn, topk_idx, probs, bal, sticky = self.moe(h)
+        return x + ffn, h, topk_idx, probs, bal, sticky
 
 
 class Predictor(nn.Module):
@@ -132,20 +137,23 @@ class Model(nn.Module):
         self.head = nn.Linear(cfg.d_model, cfg.vocab_size, bias=False)
         self.predictor = Predictor(cfg)
 
-    def forward(self, idx, targets=None):
+    def forward(self, idx, targets=None, diag=False):
         B, T = idx.shape
         x = self.tok(idx) + self.pos(torch.arange(T, device=idx.device))
-        hiddens, topks, bal_losses = [], [], []
+        hiddens, topks, probs_all, bal_losses, sticky_losses = [], [], [], [], []
         for blk in self.blocks:
-            x, h, topk_idx, bal = blk(x)
+            x, h, topk_idx, probs, bal, sticky = blk(x)
             hiddens.append(h)
             topks.append(topk_idx.view(B, T, -1))
+            probs_all.append(probs)
             bal_losses.append(bal)
+            sticky_losses.append(sticky)
         logits = self.head(self.ln_f(x))
 
         loss_lm = (F.cross_entropy(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
                    if targets is not None else None)
         loss_bal = torch.stack(bal_losses).mean()
+        loss_sticky = torch.stack(sticky_losses).mean()
 
         # Predictability loss: soft CE of predictor logits against realized top-k
         pred_logits = self.predictor(hiddens)
@@ -166,11 +174,27 @@ class Model(nn.Module):
             hits[h] = hit_h
         loss_pred = loss_pred / max(n_terms, 1)
 
-        total = None
+        out = {"logits": logits, "loss": None, "loss_lm": loss_lm,
+               "loss_bal": loss_bal, "loss_pred": loss_pred, "hits": hits}
         if loss_lm is not None:
-            total = loss_lm + self.cfg.lambda_bal * loss_bal + self.cfg.lambda_pred * loss_pred
-        return {"logits": logits, "loss": total, "loss_lm": loss_lm,
-                "loss_bal": loss_bal, "loss_pred": loss_pred, "hits": hits}
+            out["loss"] = (loss_lm + self.cfg.lambda_bal * loss_bal
+                           + self.cfg.lambda_pred * loss_pred
+                           + self.cfg.lambda_sticky * loss_sticky)
+        if diag:
+            with torch.no_grad():
+                ent = torch.stack([
+                    -(p * p.clamp_min(1e-9).log()).sum(-1).mean()
+                    for p in probs_all]).mean()
+                persist = torch.stack([
+                    (topks[l].unsqueeze(-1) == topks[l + 1].unsqueeze(-2)).any(-1)
+                    .float().mean(-1).mean()
+                    for l in range(len(topks) - 1)]).mean()
+                counts = torch.stack([
+                    F.one_hot(t.reshape(-1), self.cfg.n_experts).float().mean(0)
+                    for t in topks])
+                out["diag"] = {"entropy": ent.item(), "persist": persist.item(),
+                               "util_max": counts.max(-1).values.mean().item()}
+        return out
 
     def param_counts(self):
         total = sum(p.numel() for p in self.parameters())

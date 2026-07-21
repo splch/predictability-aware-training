@@ -1,0 +1,124 @@
+{
+  "runId": "d5c8c09d",
+  "agent": "reviewer",
+  "task": "[Read from: /home/spencer/Repositories/predictability-aware-training/plan.md, /home/spencer/Repositories/predictability-aware-training/progress.md]\n\nRED-TEAM the experimental design and scientific claims in /home/spencer/Repositories/predictability-aware-training — read RESEARCH.md, PLAN.md, RESULTS.md, then model.py/train.py as needed. The project claims: folding expert-prediction accuracy into an MoE's training loss makes the model more predictable (higher expert hit@k) at zero quality cost, enabling disk-expert prefetching. Attack the methodology: (1) Confounds — is the posthoc control fairly matched (predictor capacity, training steps 2000 vs 6000, same data stream position)? (2) Metric validity — is hit@k (top-k set overlap) the right proxy for prefetch success, or should it be e.g. weighted by expert size, per-token cache-miss cost, or recall@k under a cache budget? (3) The 'zero quality cost' claim — is val LM loss on a continuation of the training stream a valid quality measure, or is it just train loss by another name? What would contamination do to the claim? (4) Statistical rigor — single seed, eval variance across stream chunks; are +2.5pt differences meaningful? (5) Does the λ=0.03≈posthoc observation actually isolate 'training-induced predictability' as claimed? Alternative explanations? (6) Threats to the end-to-end thesis: even with perfect prediction, does prefetching actually pay at 2MB expert size and modern NVMe latency vs. just caching hot experts (Colibri's learned hot-store)? When would prediction NOT help? (7) Scale threats: why might Tier B (8 experts, 94M) results fail to transfer to 256-expert production MoEs? READ-ONLY: do not modify files, do not run training. Return a numbered list of the strongest attacks, each with severity and a concrete experimental fix or additional measurement that would address it.",
+  "exitCode": 0,
+  "usage": {
+    "input": 25773,
+    "output": 11795,
+    "cacheRead": 116992,
+    "cacheWrite": 0,
+    "cost": 0.2893416,
+    "turns": 11
+  },
+  "model": "openrouter/moonshotai/kimi-k3:high",
+  "attemptedModels": [
+    "openrouter/moonshotai/kimi-k3:high"
+  ],
+  "modelAttempts": [
+    {
+      "model": "openrouter/moonshotai/kimi-k3:high",
+      "success": true,
+      "exitCode": 0,
+      "usage": {
+        "input": 25773,
+        "output": 11795,
+        "cacheRead": 116992,
+        "cacheWrite": 0,
+        "cost": 0.2893416,
+        "turns": 11
+      }
+    }
+  ],
+  "durationMs": 403100,
+  "toolCount": 14,
+  "acceptance": {
+    "status": "attested",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "attested",
+      "explicit": false,
+      "inferredReason": [
+        "read-only/reviewer-style agent"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return concrete findings with file paths and severity when applicable",
+          "evidence": [
+            "review-findings",
+            "residual-risks"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "review-findings",
+        "residual-risks"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "read-only/reviewer-style agent"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return concrete findings with file paths and severity when applicable",
+        "evidence": [
+          "review-findings",
+          "residual-risks"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [],
+    "verifyRuns": [],
+    "childReport": {
+      "criteriaSatisfied": [
+        {
+          "id": "criterion-1",
+          "status": "satisfied",
+          "evidence": "Returned 10 numbered red-team findings with severities and concrete fixes, citing train.py:21,37,72,78-81,96, model.py:104-106,122-141,159,163-164, and log evidence from run_tierB_base.log, run_h124.log, run_h124_rest.log, run_tierB_posthoc.log, run_lambda.log (e.g., identical baseline scoring 5.942 vs 6.285 nats across experiments; h4 hit@k swinging 0.802→0.760 within one run)."
+        }
+      ],
+      "changedFiles": [],
+      "testsAddedOrUpdated": [],
+      "commandsRun": [
+        {
+          "command": "grep/sed inspection of run_*.log, run_*.sh, train.py, model.py (read-only)",
+          "result": "passed",
+          "summary": "Verified eval values, run configurations, posthoc control setup, and metric implementation against RESULTS.md claims"
+        }
+      ],
+      "validationOutput": [
+        "run_tierB_base.log final eval lm 5.942 vs run_h124_rest.log baseline final eval lm 6.285 (same seed/architecture) — eval chunk variance 0.34 nats vs claimed quality deltas of 0.005-0.014 nats",
+        "run_h124.log joint h4 hit@k 0.802@step2000/4500 → 0.760@step6000 — 4.2pt eval jitter vs +2.5pt claimed treatment effects",
+        "run_tierB_posthoc.log: posthoc control = 2000 steps, linear head, fresh stream restart at offset 0; joint runs = 6000 steps at ~24.6M token offset"
+      ],
+      "residualRisks": [
+        "Backbone-predictability ablation (posthoc-on-joint-backbone) is necessary but the accuracy bar is the co-trained predictor's number, which may depend on 6000 steps of joint history",
+        "Economic case for prefetching remains unproven until the planned cache simulation and pread benchmark (PLAN.md step 5) exist",
+        "Read-only review: no fixes applied; all findings require new training/eval runs by the owner"
+      ],
+      "noStagedFiles": true,
+      "diffSummary": "No diff — read-only review, no files modified",
+      "reviewFindings": [
+        "critical: RESULTS.md Exp1-3 - 'zero quality cost' deltas (0.005-0.014 nats) are ~2 orders of magnitude below the eval protocol's noise floor (0.34-nat spread for identical baselines, 5-batch evals from the training stream, train.py:37,96)",
+        "critical: RESULTS.md Exp3 - 'genuine training-induced predictability' claim never isolates backbone predictability from predictor co-adaptation; missing posthoc-on-frozen-joint-backbone ablation (trainable today via train.py --mode posthoc --ckpt ckpt_lam0.3_joint.pt)",
+        "high: model.py:159 - degenerate predictability (static/copied routing) not ruled out; no router entropy, utilization, or cross-layer routing-MI measurements anywhere in RESULTS.md",
+        "high: model.py:163-164 - hit@k is not the prefetch objective; no cache-budget recall, no misprefetch bandwidth penalty, k_pred fixed = top_k, cache simulation (PLAN.md step 5) unbuilt",
+        "high: train.py:78-81 + run_tierB_posthoc.log - posthoc 'SOTA control' undermatched: linear head vs cited 2-layer ranking-loss SOTA, 2000 vs 6000 steps, eval at stream offset ~8.4M vs ~24.6M tokens",
+        "high: train.py:21,37 - 'val LM loss' is the training objective on the train split; no held-out corpus or downstream probe; evals consume the training stream, desyncing cross-experiment data identity",
+        "medium-high: train.py:72 - single seed, no CIs; final-eval comparison chosen after observing mid-run fluctuation (acknowledged in RESULTS.md Exp2)",
+        "medium-high: end-to-end thesis untested - Tier B (94M params, ~1.6MB experts) is never disk-resident; prediction loses to caching when hot set fits budget, at prefill, and when bandwidth-bound; no tok/s evidence exists",
+        "medium: scale transfer - 8 experts/8 layers/25M tokens (75x undertrained) vs 256 experts/75 layers production; baseline hit@k 0.847 here vs Colibri's 0.716 on a real model suggests the toy regime is unrepresentative",
+        "low: RESULTS.md - Exp1 vs Exp2 tables present same-model evals on different stream chunks (5.942 vs 6.285) without flagging chunk variance, inviting misreading"
+      ],
+      "manualNotes": "The single highest-value action is attack #2's ablation: it requires no new backbone training (train.py already supports --mode posthoc --ckpt), directly tests the paper's central claim, and its outcome determines whether attacks #3-#5 even matter. Second priority is the fixed held-out eval set, which is a prerequisite for trusting any number in RESULTS.md."
+    }
+  },
+  "transcriptPath": "/home/spencer/Repositories/predictability-aware-training/.pi-subagents/artifacts/d5c8c09d_reviewer_1_transcript.jsonl",
+  "timestamp": 1784670131729
+}

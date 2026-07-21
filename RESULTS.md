@@ -77,3 +77,49 @@ Findings:
   is genuine training-induced predictability.
 
 Artifacts: ckpt_lam{0.03,0.3,1.0}_joint.pt; run_lambda.log
+
+## Red-team (2026-07-21, three subagents: code / methodology / novelty)
+
+**Code review**: no critical bugs. MoE dispatch verified exact vs dense
+reference (1e-18); hit@k = exact top-k set overlap; posthoc freeze verified;
+joint-mode predictor gradients reach the backbone (through pre-MoE hidden
+states only — realized top-k targets are argmax, non-differentiable, so the
+loss shapes *representations*, not router weights directly). Minor findings
+FIXED in code: predictor weight-decayed during baseline runs; posthoc mode
+could inherit co-trained predictor heads from a joint ckpt (now re-initialized);
+LR schedule could resurrect past args.steps; load-balancing loss used top-1
+fraction with top-2 dispatch (now top-k fraction); horizons validated at
+startup; eval now uses a FIXED held-out 16-batch set drawn once before
+training (identical across runs, never trained on) + routing diagnostics
+(entropy, adjacent-layer persistence, util_max) at every eval.
+
+**Methodology red-team — strongest attacks and remediation**:
+1. CRITICAL: "zero quality cost" deltas (~0.005-0.014 nats) were below the
+   eval noise floor — two identical baseline runs measured 5.942 vs 6.285
+   (different stream chunks + evals consuming the training stream). FIXED via
+   fixed held-out eval set; multi-seed still TODO before strong claims.
+2. CRITICAL: co-trained-predictor hit@k doesn't isolate backbone
+   predictability from predictor co-adaptation. FIX (queued in Tier A chain):
+   posthoc fresh-predictor run on the frozen JOINT backbone vs on the frozen
+   BASELINE backbone.
+3. HIGH: degenerate predictability not ruled out (router could get simpler,
+   not more informed). FIX: entropy/persist/util_max diagnostics now logged;
+   watch for collapse at high lambda.
+4. HIGH: hit@k is not the prefetch objective (cache budget, misprefetch
+   bandwidth cost, LRU/hot-store baseline). TODO: cache simulator (PLAN step 5).
+5. HIGH: posthoc control undermatched (linear+softCE vs 2511.10676's 2-linear
+   +ranking loss; 2000 vs 6000 steps; stream offset). Partially addressed by
+   fixed eval; ranking-loss control TODO.
+6. MEDIUM: scale transfer (8 experts, 25M tokens, 75x undertrained vs
+   Chinchilla) — Tier A tests E=16; Tier C (OLMoE) anchors to real scale.
+
+**Novelty red-team**: claim WEAKENED not dead — see RESEARCH.md "Training-time
+prior art" + "Re-scoped novelty claim". StickyMoE (2607.08780) is the closest
+prior art and a mandatory baseline: added as --lambda-sticky (routing
+consistency loss), with a sticky-only arm in the Tier A chain. Pre-gated MoE
+citation fixed (2308.12066, not 2205.10034 = SE-MoE).
+
+**Consequence for prior results**: Experiments 1-3 used the old eval protocol
+(stream-chunk evals); treat their LM-loss deltas as provisional. Hit@k
+directions are consistent across runs but exact values will be re-measured
+under the fixed eval set at Tier A.
