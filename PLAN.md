@@ -53,13 +53,18 @@ throughput claim.
 
 ## Infra steps (in order)
 
-1. [x] Install PyTorch: torch 2.13.0+cpu via uv venv. Measured 5.2 TFLOPS
-       bf16 (16 threads) — proceed CPU-only. GPU blocked: /dev/kfd and
-       /dev/dri/renderD128 are group `render`, user not in it, no passwordless
-       sudo. Unblock path: `sudo usermod -aG render $USER` + re-login, then
-       retry ROCm wheel with `HSA_OVERRIDE_GFX_VERSION=11.0.0`.
-2. [ ] Training harness: PyTorch GPT-style MoE (~300 lines) + predictor head +
-       joint loss + load-balancing loss.
+1. [x] Install PyTorch: torch 2.13.0+cpu via uv venv (5.2 TFLOPS bf16) AND
+       GPU path working: torch 2.11.0+rocm7.13 TheRock gfx1151 wheels from
+       rocm.nightlies.amd.com/v2/gfx1151 (.venv-rocm) → 31 TFLOPS bf16 on the
+       Radeon 8060S, ~18k tok/s Tier B vs 5.7k CPU. pytorch.org rocm wheels
+       segfault on gfx1151 (VGPR bug, TheRock#2991). Must run under
+       `sg render` (this session predates render-group membership) with
+       TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 and NO HSA override.
+2. [x] Training harness: `model.py` (GPT-MoE + router + Switch bal loss +
+       per-(layer,horizon) linear predictor heads + soft-CE predictability
+       loss) and `train.py` (joint/posthoc modes, FineWeb-edu streaming,
+       bf16 autocast). Smoke-tested: Tier B ~5,700 tok/s CPU; random-token
+       hit@k = 0.25 = chance level (sanity pass); joint-mode grad flow OK.
 3. [ ] Tier B smoke run: verify predictability loss moves routing entropy /
        one-layer-ahead hit rate.
 4. [ ] Tier A A/B runs (baseline vs treatment), 1-2B tokens each.

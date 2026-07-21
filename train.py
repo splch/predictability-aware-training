@@ -62,13 +62,15 @@ def main():
     p.add_argument("--ckpt", type=str, default="")
     p.add_argument("--save", type=str, default="")
     p.add_argument("--eval-every", type=int, default=200)
+    p.add_argument("--device", default="cpu")
     args = p.parse_args()
 
     cfg = TIER_A if args.tier == "A" else TIER_B
     cfg.lambda_pred = args.lambda_pred
     torch.manual_seed(0)
-    torch.set_num_threads(16)
-    model = Model(cfg)
+    if args.device == "cpu":
+        torch.set_num_threads(16)
+    model = Model(cfg).to(args.device)
     if args.ckpt:
         model.load_state_dict(torch.load(args.ckpt, weights_only=True))
     if args.mode == "posthoc":
@@ -86,16 +88,16 @@ def main():
 
     if args.data == "random":
         data = None
-        batch_fn = lambda: get_batch_random(cfg, args.batch, "cpu")
+        batch_fn = lambda: get_batch_random(cfg, args.batch, args.device)
     else:
-        data = iter(fineweb_stream(cfg, args.batch, "cpu"))
+        data = iter(fineweb_stream(cfg, args.batch, args.device))
         batch_fn = lambda: next(data)
 
     model.train()
     t0 = time.time()
     for step in range(args.steps):
         x, y = batch_fn()
-        with torch.autocast("cpu", dtype=torch.bfloat16):
+        with torch.autocast(args.device, dtype=torch.bfloat16):
             out = model(x, y)
         opt.zero_grad()
         out["loss"].backward()

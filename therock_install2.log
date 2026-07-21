@@ -1,0 +1,25 @@
+Using Python 3.13.5 environment at: .venv-rocm
+Resolved 15 packages in 2.76s
+   Building rocm==7.13.0a20260424
+Downloading setuptools (1.1MiB)
+ Downloaded setuptools
+Downloading rocm-sdk-core (393.0MiB)
+Downloading torch (674.4MiB)
+Downloading rocm-sdk-libraries-gfx1151 (310.8MiB)
+Downloading triton (329.0MiB)
+      Built rocm==7.13.0a20260424
+ Downloaded rocm-sdk-libraries-gfx1151
+ Downloaded triton
+ Downloaded rocm-sdk-core
+ Downloaded torch
+Prepared 6 packages in 1m 12s
+Uninstalled 2 packages in 138ms
+Installed 6 packages in 77ms
+ + rocm==7.13.0a20260424
+ + rocm-sdk-core==7.13.0a20260424
+ + rocm-sdk-libraries-gfx1151==7.13.0a20260424
+ - setuptools==78.1.0
+ + setuptools==80.9.0
+ - torch==2.10.0+rocm7.0
+ + torch==2.11.0+rocm7.13.0a20260424
+ + triton==3.6.0+rocm7.13.0a20260424

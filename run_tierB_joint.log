@@ -1,0 +1,21 @@
+params: 94M total / 56M active | mode=joint lambda_pred=0.1
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+step     0 | lm 10.998 | pred 2.149 | 542 tok/s
+step    20 | lm 10.569 | pred 2.130 | 7336 tok/s
+step    40 | lm 9.338 | pred 1.924 | 10614 tok/s
+step    60 | lm 8.451 | pred 2.136 | 12541 tok/s
+step    80 | lm 7.530 | pred 2.139 | 13817 tok/s
+step   100 | lm 7.698 | pred 1.987 | 14722 tok/s
+step   120 | lm 7.437 | pred 1.843 | 15379 tok/s
+step   140 | lm 7.431 | pred 1.736 | 15911 tok/s
+step   160 | lm 7.686 | pred 1.604 | 16332 tok/s
+step   180 | lm 7.316 | pred 1.507 | 16689 tok/s
+step   200 | lm 6.856 | pred 1.495 | 16983 tok/s
+step   220 | lm 7.496 | pred 1.510 | 17230 tok/s
+step   240 | lm 7.514 | pred 1.450 | 17445 tok/s
+  eval step 250: lm 7.163 pred 1.402 hit@k [h1: 0.718]
+step   260 | lm 7.119 | pred 1.388 | 17414 tok/s
+step   280 | lm 7.213 | pred 1.321 | 17581 tok/s
+step   300 | lm 6.870 | pred 1.374 | 17732 tok/s
+step   320 | lm 7.378 | pred 1.315 | 17869 tok/s
+step   340 | lm 7.426 | pred 1.316 | 17992 tok/s

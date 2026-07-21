@@ -73,8 +73,6 @@ class MoEFFN(nn.Module):
         out = torch.zeros_like(flat)
         for e in range(cfg.n_experts):
             sel = (topk_idx == e).any(dim=-1)
-            if not sel.any():
-                continue
             tok = flat[sel]
             h = F.gelu(tok @ self.w1[e]) @ self.w2[e]
             w = topk_w[sel] * (topk_idx[sel] == e).float()
