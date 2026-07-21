@@ -53,3 +53,27 @@ Implications for next experiments:
    +3 pts into tok/s under realistic NVMe latency.
 
 Artifacts: ckpt_h124_{base,joint,posthoc}.pt; run_h124*.log
+
+## Experiment 3: lambda_pred ablation {0, 0.03, 0.1, 0.3, 1.0} (2026-07-21)
+
+Same Tier B setup, horizons {1,2,4}, 6000 steps each.
+
+| lambda_pred | h=1 | h=2 | h=4 | val LM loss |
+|---|---|---|---|---|
+| 0 (baseline) + posthoc predictor | 0.847 | 0.815 | 0.735 | 6.285 |
+| 0.03 | 0.856 | 0.822 | 0.738 | 6.286 |
+| 0.1 | 0.873 | 0.843 | 0.760 | 6.284 |
+| 0.3 | 0.900 | 0.877 | 0.800 | 6.299 |
+| 1.0 | 0.916 | 0.895 | 0.848 | 6.521 |
+
+Findings:
+- Clean dose-response: predictability rises monotonically with lambda at every
+  horizon. h=4 gains the most in absolute terms (+11.3 pts from control at
+  lambda=1.0).
+- **Quality is free up to lambda=0.3** (6.299 vs 6.285 baseline, ~noise); at
+  lambda=1.0 the model pays +0.24 nats — the predictability/quality frontier
+  turns. Sweet spot at this scale: lambda ~= 0.3.
+- Joint lambda=0.03 roughly matches the posthoc control; everything above that
+  is genuine training-induced predictability.
+
+Artifacts: ckpt_lam{0.03,0.3,1.0}_joint.pt; run_lambda.log
