@@ -63,10 +63,12 @@ def main():
     p.add_argument("--save", type=str, default="")
     p.add_argument("--eval-every", type=int, default=200)
     p.add_argument("--device", default="cpu")
+    p.add_argument("--horizons", default="1", help="comma-separated layer-ahead horizons")
     args = p.parse_args()
 
     cfg = TIER_A if args.tier == "A" else TIER_B
     cfg.lambda_pred = args.lambda_pred
+    cfg.horizons = tuple(int(h) for h in args.horizons.split(","))
     torch.manual_seed(0)
     if args.device == "cpu":
         torch.set_num_threads(16)
