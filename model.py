@@ -26,6 +26,8 @@ class Config:
     lambda_pred: float = 0.0  # predictability loss weight (0 = baseline)
     lambda_bal: float = 0.01  # load-balancing aux loss weight
     lambda_sticky: float = 0.0  # StickyMoE-style temporal consistency loss
+    pred_arch: str = "linear"   # "linear" | "mlp" (2-layer, SOTA control)
+    pred_loss: str = "softce"   # "softce" | "ranking" (margin, SOTA control)
     dropout: float = 0.0
 
 
@@ -111,18 +113,27 @@ class Predictor(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.heads = nn.ParameterDict()
+        self.mlps = nn.ModuleDict()
         for h in cfg.horizons:
             for l in range(cfg.n_layers - h):
-                w = torch.empty(cfg.d_model, cfg.n_experts)
-                nn.init.normal_(w, std=0.02)
-                self.heads[f"h{h}_l{l}"] = nn.Parameter(w)
+                key = f"h{h}_l{l}"
+                if cfg.pred_arch == "mlp":
+                    self.mlps[key] = nn.Sequential(
+                        nn.Linear(cfg.d_model, cfg.d_model), nn.GELU(),
+                        nn.Linear(cfg.d_model, cfg.n_experts))
+                else:
+                    w = torch.empty(cfg.d_model, cfg.n_experts)
+                    nn.init.normal_(w, std=0.02)
+                    self.heads[key] = nn.Parameter(w)
 
     def forward(self, layer_hiddens):
         """layer_hiddens: list of [B,T,C]. Returns dict h -> list of logits."""
         out = {h: [] for h in self.cfg.horizons}
         for h in self.cfg.horizons:
             for l in range(self.cfg.n_layers - h):
-                out[h].append(layer_hiddens[l] @ self.heads[f"h{h}_l{l}"])
+                key = f"h{h}_l{l}"
+                x = layer_hiddens[l]
+                out[h].append(self.mlps[key](x) if self.mlps else x @ self.heads[key])
         return out
 
 
@@ -165,7 +176,14 @@ class Model(nn.Module):
                 true = topks[l + h]                       # [B,T,k] realized top-k
                 soft = torch.zeros(B, T, self.cfg.n_experts, device=x.device)
                 soft.scatter_(-1, true, 1.0 / self.cfg.top_k)
-                loss_pred = loss_pred + -(soft * F.log_softmax(pl.float(), -1)).sum(-1).mean()
+                if self.cfg.pred_loss == "ranking":
+                    # margin: weakest true top-k logit must beat strongest intruder
+                    tmask = soft.bool()
+                    neg = pl.float().masked_fill(tmask, -1e9).max(-1).values
+                    posv = pl.float().masked_fill(~tmask, 1e9).min(-1).values
+                    loss_pred = loss_pred + F.relu(1.0 - (posv - neg)).mean()
+                else:
+                    loss_pred = loss_pred + -(soft * F.log_softmax(pl.float(), -1)).sum(-1).mean()
                 n_terms += 1
                 with torch.no_grad():
                     pred_topk = pl.topk(self.cfg.top_k, -1).indices
@@ -194,6 +212,14 @@ class Model(nn.Module):
                     for t in topks])
                 out["diag"] = {"entropy": ent.item(), "persist": persist.item(),
                                "util_max": counts.max(-1).values.mean().item()}
+                # hidden-state homogenization (degeneracy watch)
+                hcs = []
+                for hh in hiddens:
+                    f = F.normalize(hh.reshape(-1, hh.shape[-1]).float()[:512], dim=-1)
+                    c = f @ f.T
+                    n = c.shape[0]
+                    hcs.append((c.sum() - n) / (n * (n - 1)))
+                out["diag"]["hcos"] = torch.stack(hcs).mean().item()
                 out["topks"] = [t.detach().cpu() for t in topks]
                 out["pred_topk"] = {h: [pl.topk(self.cfg.top_k, -1).indices.detach().cpu()
                                         for pl in pred_logits[h]]

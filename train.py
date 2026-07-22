@@ -18,20 +18,25 @@ def get_batch_random(cfg, bs, device):
     return x[:, :-1], x[:, 1:]
 
 
-def fineweb_stream(cfg, bs, device, split="train"):
+def fineweb_stream(cfg, bs, device, seed=0, split="train"):
+    """Document-shuffled stream (1000-doc buffer), EOS between docs, so
+    different seeds see different data order."""
+    import random
     import tiktoken
     from datasets import load_dataset
     enc = tiktoken.get_encoding("gpt2")
-    ds = load_dataset("HuggingFaceFW/fineweb-edu", "sample-10BT",
-                      split=split, streaming=True)
-    buf, need = [], bs * (cfg.ctx + 1)
+    ds = iter(load_dataset("HuggingFaceFW/fineweb-edu", "sample-10BT",
+                           split=split, streaming=True))
+    rng = random.Random(seed)
+    docs, buf, need = [], [], bs * (cfg.ctx + 1)
     while True:
-        for row in ds:
-            buf.extend(enc.encode(row["text"]))
-            while len(buf) >= need:
-                chunk, buf = buf[:need], buf[need:]
-                t = torch.tensor(chunk, dtype=torch.long, device=device).view(bs, cfg.ctx + 1)
-                yield t[:, :-1], t[:, 1:]
+        while len(docs) < 1000:
+            docs.append(enc.encode(next(ds)["text"]) + [enc.eot_token])
+        buf.extend(docs.pop(rng.randrange(len(docs))))
+        while len(buf) >= need:
+            chunk, buf = buf[:need], buf[need:]
+            t = torch.tensor(chunk, dtype=torch.long, device=device).view(bs, cfg.ctx + 1)
+            yield t[:, :-1], t[:, 1:]
 
 
 def evaluate(model, batches):
@@ -68,11 +73,15 @@ def main():
     p.add_argument("--device", default="cpu")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--horizons", default="1", help="comma-separated layer-ahead horizons")
+    p.add_argument("--pred-arch", choices=["linear", "mlp"], default="linear")
+    p.add_argument("--pred-loss", choices=["softce", "ranking"], default="softce")
     args = p.parse_args()
 
     cfg = TIER_A if args.tier == "A" else TIER_B
     cfg.lambda_pred = args.lambda_pred
     cfg.lambda_sticky = args.lambda_sticky
+    cfg.pred_arch = args.pred_arch
+    cfg.pred_loss = args.pred_loss
     cfg.horizons = tuple(int(h) for h in args.horizons.split(","))
     assert all(1 <= h < cfg.n_layers for h in cfg.horizons), "bad horizon"
     torch.manual_seed(args.seed)
@@ -80,13 +89,17 @@ def main():
         torch.set_num_threads(16)
     model = Model(cfg).to(args.device)
     if args.ckpt:
-        model.load_state_dict(torch.load(args.ckpt, weights_only=True))
+        sd = torch.load(args.ckpt, weights_only=True)
+        # predictor keys may not match across --pred-arch; always start fresh
+        sd = {k: v for k, v in sd.items() if not k.startswith("predictor.")}
+        model.load_state_dict(sd, strict=False)
     if args.mode == "posthoc":
         for n, prm in model.named_parameters():
             prm.requires_grad = n.startswith("predictor.")
         # fresh predictor: never inherit co-trained heads from the ckpt
-        for w in model.predictor.heads.values():
-            torch.nn.init.normal_(w, std=0.02)
+        for prm in model.predictor.parameters():
+            if prm.dim() >= 2:
+                torch.nn.init.normal_(prm, std=0.02)
         cfg.lambda_pred = 1.0  # predictor loss is the only thing that matters
     total, active = model.param_counts()
     print(f"params: {total/1e6:.0f}M total / {active/1e6:.0f}M active | "
@@ -103,7 +116,7 @@ def main():
         data = None
         batch_fn = lambda: get_batch_random(cfg, args.batch, args.device)
     else:
-        data = iter(fineweb_stream(cfg, args.batch, args.device))
+        data = iter(fineweb_stream(cfg, args.batch, args.device, seed=args.seed))
         batch_fn = lambda: next(data)
 
     model.train()
