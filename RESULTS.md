@@ -224,3 +224,31 @@ Findings:
    (unmeasured here) rather than steady-state tok/s.
 
 Artifacts: traces_{base,joint}.npz, results_cache_sim.csv, cache_sim.py
+
+## Experiment 6: 3-seed replication at Tier A, lambda=0.3 (2026-07-22)
+
+Seeds {0,1,2} x {baseline, joint lambda=0.3, posthoc-on-baseline}, fixed
+eval set. Between-seed std in parens (n=3).
+
+| metric | baseline | joint 0.3 | posthoc control |
+|---|---|---|---|
+| val LM loss | 5.767 (0.006) | 5.790 (0.006) | — |
+| hit@k h=1 | 0.126 | 0.888 (0.002) | 0.826 (0.003) |
+| hit@k h=2 | 0.123 | 0.865 (0.002) | 0.797 (0.002) |
+| hit@k h=4 | 0.122 | 0.796 (0.004) | 0.732 (0.004) |
+| router entropy | 2.259 (0.005) | 2.059 (0.005) | — |
+
+Paired per-seed effects:
+- **Quality cost: +0.023 +- 0.009 nats** (0.032, 0.022, 0.015). Consistently
+  positive — the earlier "zero cost" framing is NOT right at Tier A; the cost
+  is small but real (~0.4% relative).
+- **hit@k advantage over posthoc control: +6.2 +- 0.4 pts (h=1), +6.8 +- 0.4
+  (h=2), +6.4 +- 0.6 (h=4)**. Effect is ~15x the seed noise: significant.
+- Entropy reduction -0.20 +- 0.01 nats (~9%), no persistence/utilization
+  anomalies in any seed: predictability is not degenerate at lambda=0.3.
+
+Conclusion: the central result replicates. lambda=0.3 buys +6-7 pts of
+expert-predictability at every horizon for ~0.02 nats of LM quality, as a
+property of the backbone (Exp 4 isolation test), reproducibly across seeds.
+
+Artifacts: ckpt_A_s{1,2}_{base,lam0.3,posthoc}.pt; run_seeds.log
