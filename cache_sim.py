@@ -126,8 +126,8 @@ class Sim:
                     self.used.add(eid)
                     self._advance()
                     self.insert(eid)
-                if self.policy != "demand":
-                    self.prefetch(tok0, l)  # into the compute window
+                if self.policy != "demand" and self.FETCH_MS <= self.T_LAYER * self.B:
+                    self.prefetch(tok0, l)  # into the compute window, if it fits
                 self.t += self.T_LAYER * self.B
                 self._advance()
         for eid in self.diskq:
@@ -142,14 +142,14 @@ class Sim:
 
 
 def synth_traces(ntok, L, E, k, acc, rho=0.3, zipf_a=1.0, seed=0):
-    """Synthetic routing: Zipf popularity + rho temporal reuse; predictor
-    emulated at per-expert hit probability acc (from measured hit@k)."""
+    """Synthetic routing: Zipf popularity + rho temporal reuse. Returns only the
+    true routing; predictions are built per-horizon by synth_pred (a prediction
+    made at layer l must approximate true[t, l+h], NOT true[t, l])."""
     rng = np.random.default_rng(seed)
     ranks = np.arange(1, E + 1)
     p = ranks ** -zipf_a
     p /= p.sum()
     true = np.empty((ntok, L, k), dtype=np.int64)
-    pred = np.empty((ntok, L, k), dtype=np.int64)
     prev = rng.choice(E, size=(L, k), p=p)
     for t in range(ntok):
         for l in range(L):
@@ -158,9 +158,21 @@ def synth_traces(ntok, L, E, k, acc, rho=0.3, zipf_a=1.0, seed=0):
             cur = np.where(reuse, prev[l], fresh)
             prev[l] = cur
             true[t, l] = cur
-            keep = rng.random(k) < acc
-            pred[t, l] = np.where(keep, cur, rng.integers(0, E, size=k))
-    return true, pred
+    return true
+
+
+def synth_pred(true, h, acc, seed=1):
+    """Emulated predictor at per-expert hit probability acc: pred[t, l]
+    approximates true[t, l+h] (padded -1 where l+h is out of range)."""
+    rng = np.random.default_rng(seed)
+    ntok, L, k = true.shape
+    E = int(true.max()) + 1
+    pred = np.full_like(true, -1)
+    tgt = np.roll(true, -h, axis=1)  # tgt[t, l] = true[t, l+h]
+    keep = rng.random((ntok, L, k)) < acc
+    wrong = rng.integers(0, E, size=(ntok, L, k))
+    pred[:, : L - h] = np.where(keep[:, : L - h], tgt[:, : L - h], wrong[:, : L - h])
+    return pred
 
 
 def main():
@@ -174,12 +186,15 @@ def main():
 
     if args.synthetic:
         L, E, K = 75, 256, 8
+        # per-horizon accuracies from Exp 6 (posthoc control / joint / oracle)
+        accs = {"base": (0.826, 0.732), "joint": (0.888, 0.796), "oracle": (1.0, 1.0)}
         print(f"scenario: {L} layers x {E} experts, top-{K}, 19MB int4 experts, "
               "4ms/layer dense compute, C in {500, 2000}")
-        for label, acc in {"base": 0.83, "joint": 0.89, "oracle": 1.0}.items():
-            true, pred = synth_traces(2000, L, E, K, acc)
+        true = synth_traces(2000, L, E, K, 0.0)
+        for label, (a1, a4) in accs.items():
             for c in (500, 2000):
-                for pol in ("demand", 1, 4):
+                for pol, acc in (("demand", None), (1, a1), (4, a4)):
+                    pred = true if pol == "demand" else synth_pred(true, pol, acc)
                     r = Sim(true, pred, c, pol, 1, L, E, 4.0, 19.0).run()
                     print(f"acc={label:6s} C={c:5d} pol={str(pol):6s} "
                           f"tok/s={r['tok_s']:6.3f} stall={r['stall_ms_tok']:7.1f}ms "

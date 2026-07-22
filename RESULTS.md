@@ -172,58 +172,102 @@ Open items before scaling investment:
 Artifacts: ckpt_A_{base,lam0.3,lam1.0,sticky,posthoc,posthoc_on_joint}.pt;
 run_tierA2.log
 
-## Experiment 5: cache simulator — hit@k to tok/s (2026-07-21)
+## Experiment 5: cache simulator — hit@k to tok/s (CORRECTED 2026-07-22)
 
-`cache_sim.py`: trace-driven, honest single-disk FIFO queue (prefetch cannot
-create bandwidth), demand-priority, prefetch issued only into idle compute
-windows, one fetch per window. Traces: 32,768 held-out tokens from
-ckpt_A_posthoc (baseline backbone) and ckpt_A_posthoc_on_joint (joint
-backbone). Three modeling bugs were caught and fixed en route (infinite disk
-concurrency; over-queuing prefetches ahead of demand fetches; oracle
-"prefetching" the current layer).
+`cache_sim.py`: trace-driven, single-disk FIFO queue, demand-priority,
+prefetch only into idle compute windows that fit the fetch. Round-2 red-team
+found TWO blockers in the original version: (a) dump_traces.py stacked
+[B,T,k] tensors along the wrong dim, scrambling layer/token alignment — the
+toy-geometry table ran on chance-level routing; (b) synth_traces built
+pred[t,l] as a noisy copy of true[t,l] instead of true[t,l+h] — the
+"oracle" was a 17% predictor. Both fixed; traces re-validated against
+in-training evals (0.830/0.891 vs 0.826/0.888). All numbers below are the
+CORRECTED ones; the earlier table ("prefetch loses / +0.5-3%") was wrong.
 
-### Toy geometry (measured predictors, 12x16 experts, 2.88MB, 0.1ms/layer)
+### Toy geometry, measured predictors (12x16 experts, 2.88MB, 0.1ms/layer)
 
-| policy | C=64 tok/s | C=128 tok/s |
+B=1: compute window (0.1ms) < fetch (0.68ms) -> no slack, prefetch never
+fires, all policies = demand. B=8 (0.8ms window):
+
+| policy (h=1) | C=64 tok/s | C=128 tok/s |
 |---|---|---|
-| demand (reactive) | 85.8 / 86.1 | 165 / 167 |
-| h1-h4 learned predictor (base / joint) | 62-72 (LOSES) | 114-143 (LOSES) |
-| oracle prefetch | 93.5 / 93.8 (+9%) | 182 / 184 (+10%) |
+| demand | 89.3 / 89.8 | 216.2 / 216.4 |
+| base predictor | 97.3 | 260.0 |
+| **joint predictor** | **97.9** | **262.3** |
+| oracle | 97.4 | 267.0 |
+
+Prefetch pays +9% (C=64) to +21% (C=128) over demand; joint > base in every
+B=8 row (+0.5-2.5 tok/s) and nearly matches oracle at C=64.
 
 ### Synthetic Colibri geometry (75x256, top-8, 19MB int4, 4ms/layer dense)
 
-Accuracy values taken from Tier A measurements (base 0.83, joint 0.89,
-oracle 1.0); Zipf+locality synthetic routing.
+Per-horizon accuracies from Exp 6 (base 0.826/0.732, joint 0.888/0.796 at
+h=1/h=4); Zipf+locality synthetic routing.
 
 | policy | C=2000 tok/s | C=2000 waste MB/tok | C=500 tok/s |
 |---|---|---|---|
-| demand | 0.877 | 0 | 0.425 |
-| prefetch h=1, base acc | 0.880 | 68.3 | 0.436 |
-| prefetch h=1, joint acc | 0.882 | 63.8 | 0.436 |
-| prefetch h=1, oracle | 0.888 | 53.5 | 0.438 |
+| demand | 0.876 | 0 | 0.425 |
+| h=1, base acc | 1.051 (+20%) | 34.6 | 0.473 |
+| h=1, **joint acc** | **1.085 (+24%)** | **24.0** | **0.477** |
+| h=1, oracle | 1.161 (+33%) | 0.0 | 0.485 |
+| h=4, joint acc | 1.023 (+17%) | 37.5 | 0.469 |
 
-Findings:
-1. **Bandwidth conservation dominates**: when the disk is saturated (the
-   common case in both geometries), prefetching cannot improve throughput and
-   imperfect prefetching actively hurts (wasted bytes + cache pollution).
-   Prediction only pays inside idle disk windows during compute.
-2. **Where there IS slack, the thesis ordering holds**: demand < base acc <
-   joint acc < oracle, monotonically, at every budget and horizon. Joint
-   accuracy captures ~25-40% of the base-to-oracle headroom.
-3. **The cleanest system-level benefit of training-for-predictability is
-   waste reduction**: joint cuts misprefetch bytes vs base by 7-10%
-   (63.8 vs 68.3 MB/tok at C=2000 h1), moving toward oracle (53.5).
-4. Magnitudes are modest (+0.5-3% tok/s): the throughput lever of prediction
-   is small unless the engine creates disk slack (hot-store pinning, large
-   caches, batch-union at 256+ experts). Prediction and pinning are
-   complementary, matching Colibri's architecture (learned hot-store +
-   PILOT lookahead).
-5. Reframing for the paper: predictability training is not a throughput
-   silver bullet; it is the accuracy multiplier on the prefetch component of
-   a well-designed tiered engine, and its headline benefit may be TTFT/latency
-   (unmeasured here) rather than steady-state tok/s.
+Findings (corrected):
+1. Bandwidth conservation still dominates: prefetch only pays inside idle
+   disk windows (B=1 toy has none; B=8 and Colibri geometry do).
+2. Where slack exists, prefetch is a LARGE lever (+9-33% tok/s), and the
+   thesis ordering demand < base < joint < oracle holds at every budget,
+   horizon, and geometry.
+3. Joint accuracy converts to +3.2% tok/s over base at Colibri geometry
+   (1.051 -> 1.085, h=1, C=2000), capturing ~31% of the base-to-oracle
+   headroom (0.034/0.110).
+4. **Joint cuts misprefetch waste 31%** (24.0 vs 34.6 MB/tok) — the cleanest
+   system-level benefit of training for predictability.
+5. h=4 prediction is worth less than h=1 despite similar accuracy (fewer
+   fittable windows, more lead than needed): engine horizon choice matters.
 
 Artifacts: traces_{base,joint}.npz, results_cache_sim.csv, cache_sim.py
+
+## Red-team round 2 (2026-07-22, three subagents)
+
+**BLOCKERS (both fixed, Exp 5 corrected above)**: trace-dump stacking bug
+(scrambled layer/token axes); synthetic predictor misaligned by one layer
+(oracle was a 17% predictor). Independent probes by the reviewer confirmed
+the corrected numbers.
+
+**Exculpatory findings** (reviewer-verified): the +6pt effect is NOT a
+marginal-popularity artifact (expert usage near-uniform in both backbones;
+trivial popularity predictor hits 0.15) and NOT token-identity memorization
+(token-ID->expert lookup hits ~0.51 in both); git history has no overclaims;
+Exp 6 statistics sound.
+
+**Open attacks, ranked (remediation queue)**:
+1. HIGH: StickyMoE baseline inconclusive (lambda_sticky=0.1 too weak, no
+   posthoc eval). TODO: lambda_sticky sweep {0.3,1,3} + posthoc-on-sticky +
+   stacking arm. Threatens novelty if sticky matches joint hit@k.
+2. HIGH: posthoc control still undermatched (linear+softCE vs 2511.10676's
+   2-layer + ranking loss). TODO: ranking-aware control on both backbones.
+3. MEDIUM: 3-seed error bars vary only weight init — data order is
+   deterministic (unshuffled stream), eval-set variance unmeasured. TODO:
+   shuffle buffer, second eval draw.
+4. MEDIUM: undertraining confound (75x). TODO: one 250M-token Tier A 3-arm
+   run (~1.5h/arm).
+5. MEDIUM: entropy-matched control (is the +6pt structure or just
+   sharpening?). TODO: entropy-penalty arm matched to 2.06 nats + posthoc.
+6. MEDIUM: TTFT/cold-cache unmeasured; reviewer notes h=1 prediction can
+   hide most of layers 2..75 within the first token's own compute. TODO:
+   cold-cache mode in cache_sim.
+7. LOW: hidden-state homogenization is the degenerate mode our diagnostics
+   miss (off-diag cosine 0.051 base vs 0.062 joint). TODO: add to diag.
+8. LOW: no EOS between documents in the stream; GPT-2 BPE != OLMoE vocab
+   (Tier C caveat). TODO: EOS + shuffle with the stream rework.
+
+**Tier C design revision** (from round 2): frozen-backbone router-only
+fine-tune collapses into ReMoE territory and can't test the backbone
+mechanism. Revised: LoRA on attention/MLP (or unfreeze last-k blocks) +
+trainable routers + predictor, then the isolation test vs stock OLMoE.
+Success = fresh-posthoc hit@8 on fine-tuned > posthoc on stock at small PPL
+delta and no entropy collapse.
 
 ## Experiment 6: 3-seed replication at Tier A, lambda=0.3 (2026-07-22)
 

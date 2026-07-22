@@ -12,23 +12,29 @@ with the LLM and folds its prediction accuracy into the LLM's training loss,
 so the large model is optimized not just for output quality but for being
 predictable.
 
-## Headline results (Tier B: 94M-param MoE, 25M tokens, FineWeb-edu)
+## Headline results (Tier A: 341M-param MoE, 16 experts, 3 seeds)
 
-hit@k = fraction of tokens where the predictor's top-k matches the router's
-realized top-k, measured h layers ahead (chance = 0.25).
+hit@k = fraction of tokens where the predictor's top-2 matches the router's
+realized top-2, measured h layers ahead (chance = 0.125). Between-seed std
+in parens; post-hoc control = fresh linear predictor on the frozen baseline
+backbone (the SOTA deployment pattern).
 
-| lambda_pred | h=1 | h=2 | h=4 | val LM loss |
+| | h=1 | h=2 | h=4 | val LM loss |
 |---|---|---|---|---|
-| 0 (baseline) + post-hoc predictor (SOTA control) | 0.847 | 0.815 | 0.735 | 6.285 |
-| 0.03 | 0.856 | 0.822 | 0.738 | 6.286 |
-| 0.1 | 0.873 | 0.843 | 0.760 | 6.284 |
-| 0.3 | 0.900 | 0.877 | 0.800 | 6.299 |
-| 1.0 | 0.916 | 0.895 | 0.848 | 6.521 |
+| baseline + post-hoc control | 0.826 (0.003) | 0.797 (0.002) | 0.732 (0.004) | 5.767 (0.006) |
+| **joint predictability training (lambda=0.3)** | **0.888 (0.002)** | **0.865 (0.002)** | **0.796 (0.004)** | 5.790 (0.006) |
 
-- Predictability rises monotonically with lambda at every horizon.
-- **Quality is free up to lambda ~= 0.3**; the frontier turns at lambda = 1.0.
-- Full details in [RESULTS.md](RESULTS.md); literature landscape in
-  [RESEARCH.md](RESEARCH.md); method in [PLAN.md](PLAN.md).
+- **+6.2-6.8 pts of expert-predictability at every horizon** (~15x seed
+  noise), at a small but real quality cost of **+0.023 +- 0.009 nats**.
+- Predictability is a **property of the backbone**: a fresh post-hoc
+  predictor on the frozen joint backbone recovers it fully (0.890/0.866/0.796)
+  — an inference engine can exploit it without any co-training.
+- Trace-driven cache simulation (honest disk-queue economics): where disk
+  slack exists, this accuracy converts to **+3.2% tok/s and -31% misprefetch
+  waste** over the post-hoc control at Colibri-like geometry.
+- Full details in [RESULTS.md](RESULTS.md) (6 experiments, 2 red-team
+  rounds); literature landscape in [RESEARCH.md](RESEARCH.md); method in
+  [PLAN.md](PLAN.md).
 
 ## Reproduce
 

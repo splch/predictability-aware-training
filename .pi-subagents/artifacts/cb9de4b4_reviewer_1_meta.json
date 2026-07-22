@@ -1,0 +1,143 @@
+{
+  "runId": "cb9de4b4",
+  "agent": "reviewer",
+  "task": "[Read from: /home/spencer/Repositories/predictability-aware-training/plan.md, /home/spencer/Repositories/predictability-aware-training/progress.md]\n\nRED-TEAM ROUND 2 — the systems/cache-simulator claims at /home/spencer/Repositories/predictability-aware-training. Read cache_sim.py carefully, plus the Experiment 5 section of RESULTS.md and traces (traces_base.npz, traces_joint.npz via numpy if useful). The simulator claims: honest single-disk FIFO queue, demand-priority, prefetch only into idle compute windows (one fetch per window); conclusions: bandwidth conservation dominates, thesis ordering (demand<base<joint<oracle) holds in slack regimes, joint cuts misprefetch waste 7-10%, effect sizes +0.5-3% tok/s. Attack: (1) Timing model realism — 5GB/s sequential + 0.1ms latency for 2.88MB reads: is this right for pread of random 2.88MB chunks on modern NVMe (QLC vs TLC, queue depth, page cache, readahead)? What about io_uring/batched reads (Colibri uses an async pool + batch-union single pread for 3 matrices)? (2) The 'one prefetch per idle window' policy — is this the BEST engine policy or a strawman? What would Colibri actually do (it has an async I/O pool, PIPE=1, and overlaps I/O with compute of resident experts)? Does the conclusion 'prediction barely helps' survive a better engine model? (3) The synthetic Colibri-geometry scenario — Zipf+Markov(0.3) routing: how defensible is this? Real routing has cluster/topic structure (see Colibri's expert atlas). What does the synthetic choice bias toward/against? (4) Missing dimensions: TTFT/prefill (where prediction might help most), batch-union at 256 experts (union << E*k?), hot-store pinning interaction, PCIe-offload (GPU boxes) vs NVMe. Which omission most threatens the conclusions? (5) The waste-reduction claim (63.8 vs 68.3 MB/tok): is this robust or an artifact of the synthetic predictor model (independent per-expert Bernoulli errors vs correlated real mispredictions)? (6) Verify the simulator code for remaining bugs (queue recompute correctness, LRU+waste accounting, oracle tl fix, demand-priority starvation). READ-ONLY, quick CPU numpy checks OK. Ranked findings with severity and concrete fixes.",
+  "exitCode": 0,
+  "usage": {
+    "input": 48005,
+    "output": 25315,
+    "cacheRead": 273408,
+    "cacheWrite": 0,
+    "cost": 0.6057624,
+    "turns": 15
+  },
+  "model": "openrouter/moonshotai/kimi-k3:high",
+  "attemptedModels": [
+    "openrouter/moonshotai/kimi-k3:high"
+  ],
+  "modelAttempts": [
+    {
+      "model": "openrouter/moonshotai/kimi-k3:high",
+      "success": true,
+      "exitCode": 0,
+      "usage": {
+        "input": 48005,
+        "output": 25315,
+        "cacheRead": 273408,
+        "cacheWrite": 0,
+        "cost": 0.6057624,
+        "turns": 15
+      }
+    }
+  ],
+  "durationMs": 932218,
+  "toolCount": 20,
+  "acceptance": {
+    "status": "attested",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "attested",
+      "explicit": false,
+      "inferredReason": [
+        "read-only/reviewer-style agent"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return concrete findings with file paths and severity when applicable",
+          "evidence": [
+            "review-findings",
+            "residual-risks"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "review-findings",
+        "residual-risks"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "read-only/reviewer-style agent"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return concrete findings with file paths and severity when applicable",
+        "evidence": [
+          "review-findings",
+          "residual-risks"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [],
+    "verifyRuns": [],
+    "childReport": {
+      "criteriaSatisfied": [
+        {
+          "id": "criterion-1",
+          "status": "satisfied",
+          "evidence": "Ranked findings with paths/lines: BLOCKER synth_traces layer-shift (cache_sim.py:120-134 vs 63-68, realized precision 0.15-0.17 vs claimed 0.83-1.0; fixed run gives +20-33% tok/s, waste 34.4/23.7/0); HIGH fits-in-window strawman + B=8 sign flip (learned wins 92.9 vs 88.4 at B=8/C=64); HIGH monotonicity claim contradicted by results_cache_sim.csv:3-4; MEDIUM error-model fragility (Zipf errors cut waste 3x); MEDIUM missing TTFT/B>1-batch-union; LOW waste accounting (cache_sim.py:113-115, 44/60), hit-rate accounting at B>1, no seeds/CIs."
+        }
+      ],
+      "changedFiles": [],
+      "testsAddedOrUpdated": [],
+      "commandsRun": [
+        {
+          "command": ".venv/bin/python -c (Sim on traces_base/joint, B=1/8, all policies)",
+          "result": "passed",
+          "summary": "Reproduced CSV B=1 numbers; B=8 flips toy result: learned h1 beats demand at C=64 (+5%)"
+        },
+        {
+          "command": ".venv/bin/python -c (fits-in-window Sim subclass at toy B=1)",
+          "result": "passed",
+          "summary": "Learned prefetch exactly matches demand (85.8/86.1) when fetches must fit the 0.1ms window"
+        },
+        {
+          "command": ".venv/bin/python -c (realized precision of synth_traces pred vs true[t,l+1])",
+          "result": "failed",
+          "summary": "Confirmed blocker: realized next-layer precision 0.152/0.159/0.170 for claimed acc 0.83/0.89/1.0"
+        },
+        {
+          "command": ".venv/bin/python -c (fixed synth generator pred[t,l]=noisy(true[t,l+1]))",
+          "result": "passed",
+          "summary": "Fixed scenario: base +20%, joint +24%, oracle +33% tok/s; waste 34.4/23.7/0.0 MB/tok"
+        },
+        {
+          "command": ".venv/bin/python -c (Zipf-correlated error variant + prefetch skip-rate probe)",
+          "result": "passed",
+          "summary": "Zipf errors: waste 34.4->12.3 (base), ratio preserved; 0% of synthetic windows skipped due to busy-at-start"
+        }
+      ],
+      "validationOutput": [
+        "Published synthetic table reproduced exactly before critique (0.877/0.880/0.882/0.888; waste 68.3/63.8/53.5)",
+        "model.py:162 confirms real-trace pred_h{h}[l] targets layer l+h — only the synthetic generator is misaligned",
+        "git status: no tracked-file modifications (read-only review honored)"
+      ],
+      "residualRisks": [
+        "Fixed synthetic numbers come from my in-memory corrected generator, not a repo patch; parent should apply the one-line fix to synth_traces and rerun --synthetic to regenerate the table",
+        "Synthetic accuracies (0.83/0.89) are transplanted from Tier-A 12x16 measurements onto a 75x256 geometry with no cross-layer correlation structure; even after the shift fix this remains an imposed-accuracy emulation",
+        "C=500 synthetic rows were not independently re-verified (C=2000 reproduced exactly; same code path)",
+        "Timing-model realism (0.1ms latency, 5GB/s, QD=1) assessed from domain knowledge, not benchmarked on this box"
+      ],
+      "noStagedFiles": true,
+      "diffSummary": "No diff — read-only review; all probes run in-memory without touching repo files (avoided main() which overwrites results_cache_sim.csv)",
+      "reviewFindings": [
+        "BLOCKER: cache_sim.py:120-134 + 63-68 - synth_traces pred[t,l] is a same-layer copy but Sim treats it as an l+h prediction; realized precision 15-17% vs claimed 83-100%; invalidates the entire synthetic table and the +0.5-3% tok/s conclusion (fixed: +20-33%)",
+        "HIGH: cache_sim.py:63-72 - prefetch issues fetches (0.676ms) that cannot fit the B=1 compute window (0.1ms), so 'learned prefetch LOSES' is a strawman; fits-in-window engine ties demand at B=1 and learned WINS at B=8/C=64 (+5%); CSV/RESULTS omit B=8 despite --batches default 1,8",
+        "HIGH: RESULTS.md:210-212 - 'monotonic at every budget and horizon' contradicted by results_cache_sim.csv:3-4 (joint < base at C=64 h1/h2; demand beats all learned policies in toy geometry)",
+        "MEDIUM: waste claim (68.3 vs 63.8 MB/tok) is a layer-shift artifact; under the fix it is 34.4 vs 23.7 with uniform errors and 12.3 vs 8.1 with popularity-correlated errors - ratio robust, absolutes and published percentage are not",
+        "MEDIUM: missing dimensions ranked - TTFT/prefill (admitted, likely headline) > B>1 batch-union at E=256 (union approaches E; cache economics flip) > hot-store pinning > QD>1/io_uring (minor for 19MB transfer-bound reads)",
+        "LOW: cache_sim.py:113-115 - end-of-run waste flush counts only in-flight reads; unused cache-resident prefetches escape; cumulative 'used' set (line 44/60) exempts useless re-fetches of once-used experts",
+        "LOW: cache_sim.py:78 vs 95 - reqs counted per request but in-flight hits per unique eid; hit_rate understated at B>1",
+        "VERIFIED CORRECT: queue recompute, oracle tl fix, demand-priority (no starvation path), LRU eviction ordering"
+      ],
+      "manualNotes": "The single most important action: fix synth_traces to pred[t,l]=noisy(true[t,l+1]) and rerun --synthetic. The thesis ordering and the 25-40%-of-headroom claim survive the fix, but the paper's framing 'prediction barely helps throughput / +0.5-3%' inverts to '+20-33% at measured accuracies' in the Colibri geometry, and the toy-geometry 'learned prefetch LOSES' result needs a fits-in-window guard plus B=8 reporting before it can be cited."
+    }
+  },
+  "transcriptPath": "/home/spencer/Repositories/predictability-aware-training/.pi-subagents/artifacts/cb9de4b4_reviewer_1_transcript.jsonl",
+  "timestamp": 1784728108505
+}

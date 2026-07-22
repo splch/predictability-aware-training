@@ -32,13 +32,13 @@ def main():
             x, y = next(stream)
             with torch.autocast(args.device, dtype=torch.bfloat16):
                 out = model(x, y, diag=True)
-            # [B*T, L, k]
-            true_topk.append(torch.stack(out["topks"], dim=1).reshape(-1, cfg.n_layers, cfg.top_k))
+            # [B,T,L,k] -> [B*T, L, k]  (stack along T, NOT dim=1)
+            true_topk.append(torch.stack(out["topks"], dim=2).reshape(-1, cfg.n_layers, cfg.top_k))
             for h in cfg.horizons:
                 # pad missing tail layers with -1 (no prediction possible)
                 L = cfg.n_layers
                 pads = [torch.full_like(out["topks"][0], -1)] * h
-                pt = torch.stack(out["pred_topk"][h] + pads, dim=1).reshape(-1, L, cfg.top_k)
+                pt = torch.stack(out["pred_topk"][h] + pads, dim=2).reshape(-1, L, cfg.top_k)
                 pred_topk[h].append(pt)
 
     np.savez(args.out,

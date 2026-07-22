@@ -32,9 +32,9 @@ higher prefetch hit rate at equal-or-better quality.
 
 | Tier | Config | Total / Active | FLOPs/token (6NT) | Wall time / 1B tokens |
 |---|---|---|---|---|
-| A (recommended) | d=512, 12 layers, 16 experts, top-2 | ~450M / ~100M | ~6e8 | 2-4 days CPU; <1 day if ROCm iGPU works |
-| B (fast iteration) | d=384, 8 layers, 8 experts, top-2 | ~120M / ~40M | ~2.4e8 | ~1 day CPU |
-| C (stretch/transfer) | OLMoE-1B-7B fine-tune, router+predictor only, backbone frozen | 7B frozen | fwd-only + tiny grads | hours |
+| A (recommended) | d=512, 12 layers, 16 experts, top-2 | ~341M / ~99M | ~6e8 | ~80 min CPU-off/GPU |
+| B (fast iteration) | d=384, 8 layers, 8 experts, top-2 | ~94M / ~56M | ~2.4e8 | ~20 min GPU |
+| C (stretch/transfer) | OLMoE-1B-7B fine-tune: LoRA on attn/MLP + trainable routers + predictor (NOT router-only — that collapses into ReMoE territory and can't test the backbone mechanism) | 7B frozen + adapters | fwd+bwd through 1.3B active | ~3.6h per 25M tokens at 15 TFLOPS eff |
 
 Training memory for Tier A: 450M x 16 B (bf16 weights + fp32 AdamW master/m/v)
 ~= 7 GB — trivial.

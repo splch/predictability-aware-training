@@ -1,0 +1,136 @@
+{
+  "runId": "cb9de4b4",
+  "agent": "reviewer",
+  "task": "[Read from: /home/spencer/Repositories/predictability-aware-training/plan.md, /home/spencer/Repositories/predictability-aware-training/progress.md]\n\nRED-TEAM ROUND 2 — methodology & statistical claims of a research project at /home/spencer/Repositories/predictability-aware-training. Read RESULTS.md (all 6 experiments), PLAN.md, and the code (model.py, train.py) as needed. Since round 1, the project added: fixed held-out eval, routing diagnostics, a backbone-isolation test (posthoc predictor on the frozen JOINT backbone recovers co-trained accuracy: 0.890 vs 0.887), a 3-seed replication (joint advantage +6.2-6.8 pts hit@k over posthoc control, seed std ~0.4; quality cost +0.023+-0.009 nats), and corrected the 'zero cost' claim to 'small but real'. Attack what's LEFT standing: (1) The isolation test — does posthoc-on-joint recovering accuracy really prove 'deployability'? What does it NOT prove (e.g., predictor cost at inference, per-layer heads, the engine seeing only hidden states not our training pipeline)? (2) The quality-cost measurement — is val LM loss at 25M tokens of training sensitive enough to detect the relevant quality damage? What about the fact that BOTH models are ~75x undertrained (5.77 nats ~= garbage quality) — can predictability-vs-quality tradeoffs at this loss level say ANYTHING about trained-to-convergence models? (3) The entropy/persistence diagnostics — are they sufficient to rule out degenerate predictability? What's a cheaper degenerate solution these diagnostics would MISS (e.g., prediction via making hidden states more similar across tokens — hurting nothing we measure but harming downstream capability)? (4) The +6pt effect size — hit@k overlap of top-2 sets: is part of the 'advantage' an artifact of the joint model's router putting more mass on fewer experts (entropy -9%)? i.e., is the predictor just having an easier job rather than the model being more 'predictable' in the sense an engine cares about? Propose the decisive metric/control. (5) Data: single FineWeb-edu stream, GPT-2 BPE, no EOS between docs — what does this threaten? (6) What is the SINGLE most important missing experiment before Tier C (OLMoE fine-tune)? READ-ONLY (quick CPU checks OK, no GPU jobs). Ranked findings with severity and concrete fixes.",
+  "exitCode": 0,
+  "usage": {
+    "input": 35474,
+    "output": 18326,
+    "cacheRead": 269824,
+    "cacheWrite": 0,
+    "cost": 0.46225920000000004,
+    "turns": 15
+  },
+  "model": "openrouter/moonshotai/kimi-k3:high",
+  "attemptedModels": [
+    "openrouter/moonshotai/kimi-k3:high"
+  ],
+  "modelAttempts": [
+    {
+      "model": "openrouter/moonshotai/kimi-k3:high",
+      "success": true,
+      "exitCode": 0,
+      "usage": {
+        "input": 35474,
+        "output": 18326,
+        "cacheRead": 269824,
+        "cacheWrite": 0,
+        "cost": 0.46225920000000004,
+        "turns": 15
+      }
+    }
+  ],
+  "durationMs": 714416,
+  "toolCount": 20,
+  "acceptance": {
+    "status": "attested",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "attested",
+      "explicit": false,
+      "inferredReason": [
+        "read-only/reviewer-style agent"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return concrete findings with file paths and severity when applicable",
+          "evidence": [
+            "review-findings",
+            "residual-risks"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "review-findings",
+        "residual-risks"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "read-only/reviewer-style agent"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return concrete findings with file paths and severity when applicable",
+        "evidence": [
+          "review-findings",
+          "residual-risks"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [],
+    "verifyRuns": [],
+    "childReport": {
+      "criteriaSatisfied": [
+        {
+          "id": "criterion-1",
+          "status": "satisfied",
+          "evidence": "Ranked findings with file:line citations and severities: blocker at dump_traces.py:36,41 (trace scramble invalidating Exp 5); HIGH findings at train.py:30-41 (unshuffled/unseeded stream, init-only seed variance) and undermatched posthoc control (RESULTS.md Exp 4, round-1 attack #5 still open); MEDIUM/LOW findings on quality-cost transferability, entropy-artifact control, hidden-state homogenization (probe: cosine 0.051 base vs 0.062 joint), and missing EOS (train.py:36-38)."
+        }
+      ],
+      "changedFiles": [],
+      "testsAddedOrUpdated": [],
+      "commandsRun": [
+        {
+          "command": "python (numpy) marginal-concentration + trivial-predictor analysis on traces_{base,joint}.npz",
+          "result": "passed",
+          "summary": "Marginal usage near-uniform both backbones (2.764 vs 2.767 nats); trivial top-2 predictor 0.156 base vs 0.148 joint -> +6pt is not a marginal-popularity artifact; but per-layer marginals identical across pseudo-layers -> traces scrambled"
+        },
+        {
+          "command": "python (torch CPU) degeneracy probe: token-ID lookup predictor, persistence predictor, hidden-state cosine on ckpt_A_base.pt vs ckpt_A_lam0.3.pt",
+          "result": "passed",
+          "summary": "Token-ID hit@k 0.502 base vs 0.511 joint (no token-ID degeneracy); persistence ~0.12-0.13 both (no copying); pre-MoE hidden cosine 0.051 vs 0.062 (+20% relative homogenization, unmonitored)"
+        },
+        {
+          "command": "python trace hit@k cross-check vs run_tierA2.log eval values",
+          "result": "failed",
+          "summary": "Trace-derived hit@k = 0.121 (chance) vs 0.829 in training eval for same checkpoint -> confirms dump_traces.py stack(dim=1)+reshape bug scrambling [B,T,k] into [B,L,T,k]; Exp 5 trace-driven (toy geometry) results invalid"
+        },
+        {
+          "command": "grep train.py for shuffle/seed; checkpoint key inspection",
+          "result": "passed",
+          "summary": "fineweb_stream has no shuffle/seed -> 3-seed replication varies only init; all runs share identical data order and eval prefix; checkpoints contain all 29 predictor heads as expected"
+        }
+      ],
+      "validationOutput": [
+        "traces_base/joint per-layer marginals identical across all 12 pseudo-layers (impossible for real layer-specialized MoE) and adjacent-row top-2 overlap 0.152 ~= independent-draw level",
+        "run_tierA2.log:1398,1509 confirm reported 0.829/0.890 hit@k via correct in-training eval path, isolating the bug to dump_traces.py"
+      ],
+      "residualRisks": [
+        "Exp 5 toy-geometry table must be regenerated after fixing dump_traces.py; the 'learned prefetch LOSES to demand' result may change with the real 0.83/0.89-accuracy predictors",
+        "+6pt headline remains conditional on a weak posthoc control until the ranking-aware 2-layer-MLP SOTA control runs on both backbones",
+        "Quality-cost estimate (+0.023 nats) is conditional on a single 65k-token eval draw and a 75x-undertrained loss level; transfer to convergence unknown",
+        "Hidden-state homogenization (+20% cosine) has no diagnostic and no downstream-capability probe watches for capability damage"
+      ],
+      "noStagedFiles": true,
+      "diffSummary": "No repo changes (read-only review); probe script written to /tmp only",
+      "reviewFindings": [
+        "blocker: dump_traces.py:36,41 - torch.stack(dim=1)+reshape scrambles [B,T,k] traces; Exp 5 trace-driven (toy geometry) results invalid; fix stack(dim=2), re-dump, rerun cache_sim",
+        "high: RESULTS.md Exp 4/6 - +6pt headline still vs undermatched linear/soft-CE/2000-step posthoc control; isolation test proves recoverability by this family only; ranking-aware SOTA control is the mandatory pre-Tier-C experiment",
+        "high: train.py:30-41 - unshuffled unseeded stream; 3-seed replication varies init only and all runs share one eval prefix; reported error bars understate variance",
+        "medium: RESULTS.md Exp 6 - quality-cost measured at 5.77 nats (75x undertrained) on a single 65k-token eval set; cannot bound tradeoff at convergence",
+        "medium: entropy -9% artifact not fully excluded; propose entropy-matched baseline arm as decisive control (marginal-concentration artifact ruled out by trace analysis)",
+        "low: hidden-state homogenization (cosine 0.051->0.062) unmonitored by entropy/persist/util diagnostics; add rank/cosine diagnostic + capability probe",
+        "low: train.py:36-38 - no EOS between docs; cross-document transitions pollute LM loss and routing targets; GPT-2 BPE is a Tier C transfer caveat"
+      ],
+      "manualNotes": "Two independent exculpatory CPU probes support the core effect: no marginal-popularity artifact, no token-identity degeneracy, no temporal copying. The most urgent actions are (1) fix dump_traces.py and regenerate Exp 5, (2) run the strengthened posthoc SOTA control before any Tier C spend."
+    }
+  },
+  "transcriptPath": "/home/spencer/Repositories/predictability-aware-training/.pi-subagents/artifacts/cb9de4b4_reviewer_0_transcript.jsonl",
+  "timestamp": 1784727890701
+}
