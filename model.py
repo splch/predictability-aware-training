@@ -194,6 +194,10 @@ class Model(nn.Module):
                     for t in topks])
                 out["diag"] = {"entropy": ent.item(), "persist": persist.item(),
                                "util_max": counts.max(-1).values.mean().item()}
+                out["topks"] = [t.detach().cpu() for t in topks]
+                out["pred_topk"] = {h: [pl.topk(self.cfg.top_k, -1).indices.detach().cpu()
+                                        for pl in pred_logits[h]]
+                                    for h in self.cfg.horizons}
         return out
 
     def param_counts(self):

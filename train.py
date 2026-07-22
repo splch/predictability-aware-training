@@ -66,6 +66,7 @@ def main():
     p.add_argument("--save", type=str, default="")
     p.add_argument("--eval-every", type=int, default=200)
     p.add_argument("--device", default="cpu")
+    p.add_argument("--seed", type=int, default=0)
     p.add_argument("--horizons", default="1", help="comma-separated layer-ahead horizons")
     args = p.parse_args()
 
@@ -74,7 +75,7 @@ def main():
     cfg.lambda_sticky = args.lambda_sticky
     cfg.horizons = tuple(int(h) for h in args.horizons.split(","))
     assert all(1 <= h < cfg.n_layers for h in cfg.horizons), "bad horizon"
-    torch.manual_seed(0)
+    torch.manual_seed(args.seed)
     if args.device == "cpu":
         torch.set_num_threads(16)
     model = Model(cfg).to(args.device)

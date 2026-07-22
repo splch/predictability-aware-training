@@ -171,3 +171,56 @@ Open items before scaling investment:
 
 Artifacts: ckpt_A_{base,lam0.3,lam1.0,sticky,posthoc,posthoc_on_joint}.pt;
 run_tierA2.log
+
+## Experiment 5: cache simulator — hit@k to tok/s (2026-07-21)
+
+`cache_sim.py`: trace-driven, honest single-disk FIFO queue (prefetch cannot
+create bandwidth), demand-priority, prefetch issued only into idle compute
+windows, one fetch per window. Traces: 32,768 held-out tokens from
+ckpt_A_posthoc (baseline backbone) and ckpt_A_posthoc_on_joint (joint
+backbone). Three modeling bugs were caught and fixed en route (infinite disk
+concurrency; over-queuing prefetches ahead of demand fetches; oracle
+"prefetching" the current layer).
+
+### Toy geometry (measured predictors, 12x16 experts, 2.88MB, 0.1ms/layer)
+
+| policy | C=64 tok/s | C=128 tok/s |
+|---|---|---|
+| demand (reactive) | 85.8 / 86.1 | 165 / 167 |
+| h1-h4 learned predictor (base / joint) | 62-72 (LOSES) | 114-143 (LOSES) |
+| oracle prefetch | 93.5 / 93.8 (+9%) | 182 / 184 (+10%) |
+
+### Synthetic Colibri geometry (75x256, top-8, 19MB int4, 4ms/layer dense)
+
+Accuracy values taken from Tier A measurements (base 0.83, joint 0.89,
+oracle 1.0); Zipf+locality synthetic routing.
+
+| policy | C=2000 tok/s | C=2000 waste MB/tok | C=500 tok/s |
+|---|---|---|---|
+| demand | 0.877 | 0 | 0.425 |
+| prefetch h=1, base acc | 0.880 | 68.3 | 0.436 |
+| prefetch h=1, joint acc | 0.882 | 63.8 | 0.436 |
+| prefetch h=1, oracle | 0.888 | 53.5 | 0.438 |
+
+Findings:
+1. **Bandwidth conservation dominates**: when the disk is saturated (the
+   common case in both geometries), prefetching cannot improve throughput and
+   imperfect prefetching actively hurts (wasted bytes + cache pollution).
+   Prediction only pays inside idle disk windows during compute.
+2. **Where there IS slack, the thesis ordering holds**: demand < base acc <
+   joint acc < oracle, monotonically, at every budget and horizon. Joint
+   accuracy captures ~25-40% of the base-to-oracle headroom.
+3. **The cleanest system-level benefit of training-for-predictability is
+   waste reduction**: joint cuts misprefetch bytes vs base by 7-10%
+   (63.8 vs 68.3 MB/tok at C=2000 h1), moving toward oracle (53.5).
+4. Magnitudes are modest (+0.5-3% tok/s): the throughput lever of prediction
+   is small unless the engine creates disk slack (hot-store pinning, large
+   caches, batch-union at 256+ experts). Prediction and pinning are
+   complementary, matching Colibri's architecture (learned hot-store +
+   PILOT lookahead).
+5. Reframing for the paper: predictability training is not a throughput
+   silver bullet; it is the accuracy multiplier on the prefetch component of
+   a well-designed tiered engine, and its headline benefit may be TTFT/latency
+   (unmeasured here) rather than steady-state tok/s.
+
+Artifacts: traces_{base,joint}.npz, results_cache_sim.csv, cache_sim.py
