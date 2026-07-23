@@ -150,7 +150,9 @@ class OlmoePredictability(nn.Module):
 
     def forward(self, input_ids, labels=None, diag=False):
         self._hid, self._logits, self._idx = [], [], []
-        out = self.lm(input_ids=input_ids, labels=labels)
+        # NOTE: HF shifts labels internally -> pass UNshifted ids; the caller's
+        # pre-shifted `labels` arg is ignored for the LM loss (double-shift bug).
+        out = self.lm(input_ids=input_ids, labels=input_ids)
         B, T = input_ids.shape
         E, k = self.n_experts, self.top_k
         topks = [i.view(B, T, k) for i in self._idx]
