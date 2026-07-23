@@ -42,6 +42,7 @@ class Sim:
         self.stall = self.pf_mb = self.waste_mb = 0.0
         self.hits = self.reqs = 0
         self.used = set()
+        self.token_ms = []  # per-token wall time (latency analysis)
 
     def _recompute(self):
         start = self.current[1]
@@ -96,6 +97,7 @@ class Sim:
     def run(self):
         N = self.true.shape[0]
         for tok0 in range(0, N - self.B + 1, self.B):
+            t_tok = self.t
             for l in range(self.L):
                 need, seen = [], set()
                 for b in range(self.B):
@@ -130,6 +132,7 @@ class Sim:
                     self.prefetch(tok0, l)  # into the compute window, if it fits
                 self.t += self.T_LAYER * self.B
                 self._advance()
+            self.token_ms.append(self.t - t_tok)
         for eid in self.diskq:
             if eid not in self.used:
                 self.waste_mb += self.EXPERT_MB
@@ -182,12 +185,34 @@ def main():
     p.add_argument("--batches", default="1,8")
     p.add_argument("--synthetic", action="store_true",
                    help="Colibri-geometry scenario with measured accuracies")
+    p.add_argument("--ttft", action="store_true",
+                   help="cold-cache TTFT + per-token latency percentiles")
+    p.add_argument("--lat", type=float, default=None, help="NVMe latency ms")
+    p.add_argument("--bw", type=float, default=None, help="NVMe bandwidth MB/s")
     args = p.parse_args()
+    if args.lat is not None:
+        globals()["LAT_MS"] = args.lat
+    if args.bw is not None:
+        globals()["BW_MB_S"] = args.bw
 
-    if args.synthetic:
+    if args.synthetic or args.ttft:
         L, E, K = 75, 256, 8
         # per-horizon accuracies from Exp 6 (posthoc control / joint / oracle)
         accs = {"base": (0.826, 0.732), "joint": (0.888, 0.796), "oracle": (1.0, 1.0)}
+        if args.ttft:
+            print(f"TTFT / per-token latency, cold cache: {L}x{E} top-{K}, "
+                  "19MB int4, 4ms/layer, C=2000")
+            true = synth_traces(2000, L, E, K, 0.0)
+            for label, (a1, _) in accs.items():
+                for pol in ("demand", 1):
+                    pred = true if pol == "demand" else synth_pred(true, 1, a1)
+                    sim = Sim(true, pred, 2000, pol, 1, L, E, 4.0, 19.0)
+                    r = sim.run()
+                    ms = np.array(sim.token_ms)
+                    print(f"acc={label:6s} pol={str(pol):6s} TTFT={ms[0]:7.1f}ms "
+                          f"p50={np.percentile(ms,50):7.1f}ms "
+                          f"p99={np.percentile(ms,99):7.1f}ms tok/s={r['tok_s']:.3f}")
+            return
         print(f"scenario: {L} layers x {E} experts, top-{K}, 19MB int4 experts, "
               "4ms/layer dense compute, C in {500, 2000}")
         true = synth_traces(2000, L, E, K, 0.0)

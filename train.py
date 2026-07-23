@@ -63,6 +63,7 @@ def main():
     p.add_argument("--mode", choices=["joint", "posthoc"], default="joint")
     p.add_argument("--lambda-pred", type=float, default=0.0)
     p.add_argument("--lambda-sticky", type=float, default=0.0)
+    p.add_argument("--lambda-ent", type=float, default=0.0)
     p.add_argument("--steps", type=int, default=1000)
     p.add_argument("--batch", type=int, default=8)
     p.add_argument("--lr", type=float, default=3e-4)
@@ -80,6 +81,7 @@ def main():
     cfg = TIER_A if args.tier == "A" else TIER_B
     cfg.lambda_pred = args.lambda_pred
     cfg.lambda_sticky = args.lambda_sticky
+    cfg.lambda_ent = args.lambda_ent
     cfg.pred_arch = args.pred_arch
     cfg.pred_loss = args.pred_loss
     cfg.horizons = tuple(int(h) for h in args.horizons.split(","))

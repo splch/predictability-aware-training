@@ -353,3 +353,25 @@ quality cost **+0.033 +- 0.016 nats**. The init-only error bars of Exp 6
 
 Artifacts: ckpt_A_posthoc_rank{,_on_joint}.pt, ckpt_A_sticky{0.3,1.0,3.0}*.pt,
 ckpt_A_stack*.pt, ckpt_V_s{0,1,2}_*.pt; run_remediation.log
+
+## Experiment 8: TTFT + hardware sensitivity (2026-07-23)
+
+Cold-cache TTFT and per-token latency, synthetic Colibri geometry, C=2000:
+
+| policy | TTFT | p50 | p99 | tok/s |
+|---|---|---|---|---|
+| demand | 2398ms | 1142ms | 1256ms | 0.876 |
+| prefetch h=1, base acc | 2156ms | 947ms | 1064ms | 1.051 |
+| prefetch h=1, joint acc | 2133ms | 920ms | 1033ms | 1.085 |
+| prefetch h=1, oracle | 2110ms | 862ms | 971ms | 1.161 |
+
+- Prediction-in-general cuts TTFT ~11% and p50 ~17-25%. The JOINT advantage
+  over base is small on TTFT (~1%) but consistent on p50 (-3%).
+  Conclusion: TTFT is not the headline differentiator for training-induced
+  predictability; throughput + waste are.
+- Hardware sensitivity (lat {0.05,0.1,0.2ms} x BW {3.5,5,7 GB/s}): the joint
+  vs base uplift is stable at **+2.9-3.2%** and joint vs demand at
+  **+21-24%** whenever prefetch fires at all. At 3.5GB/s the 19MB fetch
+  (5.4ms) exceeds the 4ms compute window so the fits-in-window guard blocks
+  all prefetching — the method needs fetch_time <= compute_window; BW, not
+  latency, gates the regime.

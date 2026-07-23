@@ -26,6 +26,7 @@ class Config:
     lambda_pred: float = 0.0  # predictability loss weight (0 = baseline)
     lambda_bal: float = 0.01  # load-balancing aux loss weight
     lambda_sticky: float = 0.0  # StickyMoE-style temporal consistency loss
+    lambda_ent: float = 0.0     # router-entropy penalty (sharpening control)
     pred_arch: str = "linear"   # "linear" | "mlp" (2-layer, SOTA control)
     pred_loss: str = "softce"   # "softce" | "ranking" (margin, SOTA control)
     dropout: float = 0.0
@@ -88,7 +89,9 @@ class MoEFFN(nn.Module):
         # StickyMoE-style routing consistency between consecutive tokens
         p = probs.view(B, T, -1)
         sticky = (p[:, 1:] - p[:, :-1]).pow(2).mean()
-        return out.view(B, T, C), topk_idx, probs, bal, sticky
+        # mean per-token router entropy (sharpening-control target)
+        ent = -(probs * probs.clamp_min(1e-9).log()).sum(-1).mean()
+        return out.view(B, T, C), topk_idx, probs, bal, sticky, ent
 
 
 class Block(nn.Module):
@@ -102,8 +105,8 @@ class Block(nn.Module):
     def forward(self, x):
         x = x + self.attn(self.ln1(x))
         h = self.ln2(x)  # pre-MoE hidden state = predictor input
-        ffn, topk_idx, probs, bal, sticky = self.moe(h)
-        return x + ffn, h, topk_idx, probs, bal, sticky
+        ffn, topk_idx, probs, bal, sticky, ent = self.moe(h)
+        return x + ffn, h, topk_idx, probs, bal, sticky, ent
 
 
 class Predictor(nn.Module):
@@ -151,20 +154,22 @@ class Model(nn.Module):
     def forward(self, idx, targets=None, diag=False):
         B, T = idx.shape
         x = self.tok(idx) + self.pos(torch.arange(T, device=idx.device))
-        hiddens, topks, probs_all, bal_losses, sticky_losses = [], [], [], [], []
+        hiddens, topks, probs_all, bal_losses, sticky_losses, ent_losses = [], [], [], [], [], []
         for blk in self.blocks:
-            x, h, topk_idx, probs, bal, sticky = blk(x)
+            x, h, topk_idx, probs, bal, sticky, ent = blk(x)
             hiddens.append(h)
             topks.append(topk_idx.view(B, T, -1))
             probs_all.append(probs)
             bal_losses.append(bal)
             sticky_losses.append(sticky)
+            ent_losses.append(ent)
         logits = self.head(self.ln_f(x))
 
         loss_lm = (F.cross_entropy(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
                    if targets is not None else None)
         loss_bal = torch.stack(bal_losses).mean()
         loss_sticky = torch.stack(sticky_losses).mean()
+        loss_ent = torch.stack(ent_losses).mean()
 
         # Predictability loss: soft CE of predictor logits against realized top-k
         pred_logits = self.predictor(hiddens)
@@ -197,7 +202,8 @@ class Model(nn.Module):
         if loss_lm is not None:
             out["loss"] = (loss_lm + self.cfg.lambda_bal * loss_bal
                            + self.cfg.lambda_pred * loss_pred
-                           + self.cfg.lambda_sticky * loss_sticky)
+                           + self.cfg.lambda_sticky * loss_sticky
+                           + self.cfg.lambda_ent * loss_ent)
         if diag:
             with torch.no_grad():
                 ent = torch.stack([
