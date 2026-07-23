@@ -1,0 +1,227 @@
+{
+  "runId": "f0f80bfa-18c1-4681-ba6d-4c1f66006662",
+  "agent": "worker",
+  "task": "You are a delegated subagent running from a fork of the parent session. Treat the inherited conversation as reference-only context, not a live thread to continue. Do not continue or answer prior messages as if they are waiting for a reply. Your sole job is to execute the task below and return a focused result for that task using your tools.\n\nTask:\nBuild the Tier C harness in /home/spencer/Repositories/predictability-aware-training — a NEW file `train_olmoe.py` (do NOT modify model.py, train.py, or any existing file; the GPU is busy with a run, so ALL your testing must be CPU-only with tiny configs).\n\nGOAL: fine-tune the pretrained OLMoE-1B-7B MoE (allenai/OLMoE-1B-7B-0924, downloading in the background to the HF cache) with the project's joint predictability loss, plus the controls the project's methodology requires. Use HuggingFace transformers (already installed in .venv-rocm) — do not port the architecture by hand.\n\nCONTEXT (read first): RESEARCH.md (proposal + prior art), RESULTS.md (Experiments 4-7 — the methodology you must replicate: joint vs baseline vs posthoc-on-frozen-backbone isolation test, hit@k metric, entropy diagnostics), model.py (reference implementation of the loss/metrics — mirror its semantics), PLAN.md Tier C row.\n\nREQUIREMENTS for train_olmoe.py:\n1. Load OlmoeForCausalLM via transformers. Add a predictor module: per-(layer, horizon) linear heads from the pre-MoE hidden state at layer l to router targets at layer l+h (horizons configurable, default 1,2,4). OLMoE: 16 layers, 64 experts, top-8. Get hidden states and per-layer router logits via output_hidden_states=True and model hooks on the MoE blocks (OlmoeSparseMoeBlock / its gate) — verify actual module names by introspecting the tiny model.\n2. Loss = LM loss + lambda_bal * (OLMoE's own aux loss if exposed) + lambda_pred * predictability loss: soft cross-entropy of predictor logits against the realized top-8 routing set (uniform 1/8 mass over realized top-8), exactly mirroring model.py. Gradients must flow into the backbone through the hidden states.\n3. LoRA on attention and MLP (NOT router-only — the mechanism under test is representation-shaping). Implement LoRA manually (small wrapper module, freeze base, train A/B) — do NOT add the peft dependency. Trainable: LoRA params + all router/gate weights + predictor. Backbone base weights frozen.\n4. Modes mirroring train.py: --mode joint (lambda_pred configurable), baseline (lambda_pred=0), and --mode posthoc --ckpt X (freeze everything except predictor, re-initialize predictor, train predictor only). --horizons, --seed, --lambda-pred, --steps, --batch, --lr, --eval-every, --device, --save args.\n5. Data: reuse the project's fineweb_stream pattern (shuffled 1000-doc buffer, EOS) but with OLMoE's own tokenizer (allenai/OLMoE-1B-7B-0924) — import the stream function pattern from train.py and parameterize the tokenizer. ctx 512.\n6. Eval: fixed 16-batch held-out set drawn once before training; per-eval metrics: LM loss, pred loss, hit@k per horizon (top-8 set overlap |pred∩true|/8), mean router entropy, per-layer adjacent-persistence, util_max — mirror model.py's diag semantics so numbers are comparable.\n7. bf16 autocast, AdamW, cosine schedule with warmup, grad clip 1.0. Save/load state_dicts (load must tolerate predictor-key mismatch across modes: strict=False for backbone, predictor always re-initialized in posthoc).\n8. CPU smoke test PROOF (this is your acceptance test — run it, capture output): create a tiny OlmoeConfig (e.g., 4 layers, hidden 128, 8 experts, top-2, vocab 1000) with random weights, and show 20 training steps on random tokens in EACH mode (joint with lambda-pred 0.1, posthoc from the saved ckpt), printing losses and eval line. Also verify with a gradient probe that in joint mode loss_pred puts nonzero gradient on a backbone LoRA param AND on a router weight (through hidden states), and that in posthoc mode all non-predictor grads are None/zero.\n9. OLMoE-1B-7B specifics to handle: its router/gate is per-block; MoE blocks are every block (no shared experts); it uses QK-norm and clipped logits — don't fight the HF implementation, just hook it. If the weights download is still running, develop entirely against the tiny config.\n10. Write a short header comment in the file: usage examples for the three modes, mirroring train.py's style.\n\nDo NOT run anything on GPU. Do NOT start long downloads. Do not modify other files. Report: the file path, the smoke-test output proving gradient flow in both modes, and any OLMoE-specific gotchas discovered (exact module attr names for gate/experts).\n\n## Acceptance Contract\nAcceptance level: reviewed\nCompletion is not accepted from prose alone. End with a structured acceptance report.\n\nCriteria:\n- criterion-1: Implement the requested change without widening scope\n- criterion-2: Return evidence sufficient for an independent acceptance review\n\nRequired evidence: changed-files, tests-added, commands-run, validation-output, residual-risks, no-staged-files\n\nReview gate: required by reviewer.\n\nFinish with a fenced JSON block tagged `acceptance-report` in this shape:\nUse empty arrays when no items apply; array fields contain strings unless object entries are shown.\n`criteriaSatisfied[].status` must be exactly one of: satisfied, not-satisfied, not-applicable.\n`commandsRun[].result` must be exactly one of: passed, failed, not-run.\n`manualNotes` and `notes` are optional strings; an empty string means no note and does not satisfy `manual-notes` evidence.\n```acceptance-report\n{\n  \"criteriaSatisfied\": [\n    {\n      \"id\": \"criterion-1\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"specific proof\"\n    },\n    {\n      \"id\": \"criterion-2\",\n      \"status\": \"satisfied\",\n      \"evidence\": \"specific proof\"\n    }\n  ],\n  \"changedFiles\": [\n    \"src/file.ts\"\n  ],\n  \"testsAddedOrUpdated\": [\n    \"test/file.test.ts\"\n  ],\n  \"commandsRun\": [\n    {\n      \"command\": \"command\",\n      \"result\": \"passed\",\n      \"summary\": \"short result\"\n    }\n  ],\n  \"validationOutput\": [\n    \"validation output or concise summary\"\n  ],\n  \"residualRisks\": [\n    \"none\"\n  ],\n  \"noStagedFiles\": true,\n  \"diffSummary\": \"short description of the diff\",\n  \"reviewFindings\": [\n    \"blocker: file.ts:12 - issue found, or no blockers\"\n  ],\n  \"manualNotes\": \"anything else the parent should know\"\n}\n```",
+  "exitCode": 0,
+  "model": "openrouter/moonshotai/kimi-k3:high",
+  "attemptedModels": [
+    "openrouter/moonshotai/kimi-k3:high"
+  ],
+  "modelAttempts": [
+    {
+      "model": "openrouter/moonshotai/kimi-k3:high",
+      "success": true,
+      "exitCode": 0,
+      "usage": {
+        "input": 209621,
+        "output": 17319,
+        "cacheRead": 3412224,
+        "cacheWrite": 0,
+        "cost": 1.9123152,
+        "turns": 18
+      }
+    }
+  ],
+  "acceptance": {
+    "status": "checked",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "reviewed",
+      "explicit": false,
+      "inferredReason": [
+        "async write-capable or risky run"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Implement the requested change without widening scope",
+          "evidence": [
+            "changed-files",
+            "tests-added",
+            "commands-run",
+            "validation-output",
+            "residual-risks",
+            "no-staged-files"
+          ],
+          "severity": "required"
+        },
+        {
+          "id": "criterion-2",
+          "must": "Return evidence sufficient for an independent acceptance review",
+          "evidence": [
+            "changed-files",
+            "tests-added",
+            "commands-run",
+            "validation-output",
+            "residual-risks",
+            "no-staged-files"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "changed-files",
+        "tests-added",
+        "commands-run",
+        "validation-output",
+        "residual-risks",
+        "no-staged-files"
+      ],
+      "verify": [],
+      "review": {
+        "agent": "reviewer",
+        "required": true
+      },
+      "stopRules": []
+    },
+    "inferredReason": [
+      "async write-capable or risky run"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Implement the requested change without widening scope",
+        "evidence": [
+          "changed-files",
+          "tests-added",
+          "commands-run",
+          "validation-output",
+          "residual-risks",
+          "no-staged-files"
+        ],
+        "severity": "required"
+      },
+      {
+        "id": "criterion-2",
+        "must": "Return evidence sufficient for an independent acceptance review",
+        "evidence": [
+          "changed-files",
+          "tests-added",
+          "commands-run",
+          "validation-output",
+          "residual-risks",
+          "no-staged-files"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [
+      {
+        "id": "criterion:criterion-1",
+        "status": "passed",
+        "message": "Required criterion 'criterion-1' satisfied."
+      },
+      {
+        "id": "criterion:criterion-2",
+        "status": "passed",
+        "message": "Required criterion 'criterion-2' satisfied."
+      },
+      {
+        "id": "evidence:changed-files",
+        "status": "passed",
+        "message": "changed-files evidence present."
+      },
+      {
+        "id": "evidence:tests-added",
+        "status": "not-applicable",
+        "message": "tests-added evidence explicitly reported as not applicable."
+      },
+      {
+        "id": "evidence:commands-run",
+        "status": "passed",
+        "message": "commands-run evidence present."
+      },
+      {
+        "id": "evidence:validation-output",
+        "status": "passed",
+        "message": "validation-output evidence present."
+      },
+      {
+        "id": "evidence:residual-risks",
+        "status": "passed",
+        "message": "residual-risks evidence present."
+      },
+      {
+        "id": "evidence:no-staged-files",
+        "status": "passed",
+        "message": "no-staged-files evidence present."
+      },
+      {
+        "id": "no-staged-files",
+        "status": "passed",
+        "message": "No staged files detected."
+      }
+    ],
+    "verifyRuns": [],
+    "childReport": {
+      "criteriaSatisfied": [
+        {
+          "id": "criterion-1",
+          "status": "satisfied",
+          "evidence": "Only new file train_olmoe.py created; model.py/train.py untouched (git log/diff clean); scope limited to the specified harness"
+        },
+        {
+          "id": "criterion-2",
+          "status": "satisfied",
+          "evidence": "CPU smoke runs in both modes + gradient probes proving joint-mode flow into LoRA/router and posthoc-mode predictor-only grads"
+        }
+      ],
+      "changedFiles": [
+        "train_olmoe.py"
+      ],
+      "testsAddedOrUpdated": [],
+      "commandsRun": [
+        {
+          "command": "python train_olmoe.py --tiny --data random --device cpu --mode joint --lambda-pred 0.1 --steps 20 --eval-every 20 --save /tmp/ckpt_C_smoke.pt",
+          "result": "passed",
+          "summary": "joint mode trains; eval hit@k 0.257/0.258 (chance), ent 2.057; ckpt saved"
+        },
+        {
+          "command": "python train_olmoe.py --tiny --data random --device cpu --mode posthoc --ckpt /tmp/ckpt_C_smoke.pt --steps 20 --eval-every 20",
+          "result": "passed",
+          "summary": "posthoc loads backbone strict=False, re-inits predictor, trains predictor only"
+        },
+        {
+          "command": "joint gradient probe (loss_pred.backward)",
+          "result": "passed",
+          "summary": "nonzero grads on lora_B (0.270) and gate.weight (0.052); frozen base/embed grads None"
+        },
+        {
+          "command": "posthoc gradient probe (loss.backward)",
+          "result": "passed",
+          "summary": "zero non-predictor grads; 5/5 predictor params have grads"
+        }
+      ],
+      "validationOutput": [
+        "mode=joint lambda_pred=0.1 horizons=(1, 2) | trainable 0.1M; eval step 20: lm 6.934 pred 2.095 hit@k [h1: 0.257 | h2: 0.258] | ent 2.057 persist 0.248 util_max 0.200",
+        "JOINT loss_pred grads: lora_B=0.26979 gate=0.05168 predictor=6.07239; frozen attn base=None embed=None",
+        "POSTHOC nonzero non-predictor grads: []; predictor params with grad: 5/5"
+      ],
+      "residualRisks": [
+        "Real 7B model untested (GPU was off-limits): bf16 memory/throughput on the APU unknown (PLAN estimates ~3.6h/25M tokens)",
+        "FineWeb stream with the OLMoE tokenizer untested (network access avoided; smoke used --data random)",
+        "LoRAExperts bypasses HF's use_experts_implementation dispatch — semantics identical, but if a fused/batched kernel is expected for speed on GPU, training will use the eager loop",
+        "No aux load-balancing loss from HF (OLMoE doesn't expose one); own Switch-style loss available via --lambda-bal but defaults to 0.0"
+      ],
+      "noStagedFiles": true,
+      "diffSummary": "New train_olmoe.py: HF OLMoE + manual LoRA (attn + fused experts) + per-(layer,horizon) predictor with joint/baseline/posthoc modes mirroring train.py semantics",
+      "reviewFindings": [
+        "no blockers"
+      ],
+      "manualNotes": "File is already tracked (parent swept it into commit 545f206 mid-task; committed copy verified to include the final dtype and horizon-clamp fixes). OLMoE weights finished downloading to the HF cache during this task, so the real Tier C run can start as soon as the GPU frees."
+    },
+    "reviewResult": {
+      "status": "needs-parent-decision",
+      "findings": [
+        {
+          "severity": "non-blocking",
+          "issue": "Reviewed acceptance requires an independent reviewer result.",
+          "rationale": "The run cannot be marked reviewed from child evidence alone."
+        }
+      ]
+    }
+  },
+  "transcriptPath": "/home/spencer/Repositories/predictability-aware-training/.pi-subagents/artifacts/f0f80bfa-18c1-4681-ba6d-4c1f66006662_worker_transcript.jsonl",
+  "skills": [],
+  "timestamp": 1784782997745
+}

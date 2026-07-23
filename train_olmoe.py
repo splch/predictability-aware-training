@@ -44,7 +44,7 @@ class LoRALinear(nn.Module):
         self.scale = alpha / r
 
     def forward(self, x):
-        return self.base(x) + (x @ self.lora_A @ self.lora_B) * self.scale
+        return self.base(x) + (x @ self.lora_A.to(x.dtype) @ self.lora_B.to(x.dtype)) * self.scale
 
 
 class LoRAExperts(nn.Module):
@@ -79,8 +79,9 @@ class LoRAExperts(nn.Module):
             if e == base.num_experts:
                 continue
             pos, tok = torch.where(mask[e])
-            gu = base.gate_up_proj[e] + (self.gu_B[e] @ self.gu_A[e]) * self.scale
-            dn = base.down_proj[e] + (self.dn_B[e] @ self.dn_A[e]) * self.scale
+            dt = base.gate_up_proj.dtype
+            gu = base.gate_up_proj[e] + (self.gu_B[e].to(dt) @ self.gu_A[e].to(dt)) * self.scale
+            dn = base.down_proj[e] + (self.dn_B[e].to(dt) @ self.dn_A[e].to(dt)) * self.scale
             gate, up = F.linear(hidden_states[tok], gu).chunk(2, dim=-1)
             cur = self.act_fn(gate) * up
             cur = F.linear(cur, dn) * top_k_weights[tok, pos, None]
