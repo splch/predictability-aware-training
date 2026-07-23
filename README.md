@@ -24,15 +24,23 @@ backbone (the SOTA deployment pattern).
 | baseline + post-hoc control | 0.826 (0.003) | 0.797 (0.002) | 0.732 (0.004) | 5.767 (0.006) |
 | **joint predictability training (lambda=0.3)** | **0.888 (0.002)** | **0.865 (0.002)** | **0.796 (0.004)** | 5.790 (0.006) |
 
-- **+6.2-6.8 pts of expert-predictability at every horizon** (~15x seed
-  noise), at a small but real quality cost of **+0.023 +- 0.009 nats**.
-- Predictability is a **property of the backbone**: a fresh post-hoc
-  predictor on the frozen joint backbone recovers it fully (0.890/0.866/0.796)
-  — an inference engine can exploit it without any co-training.
+- **+6.2-6.8 pts of expert-predictability at every horizon** vs the linear
+  post-hoc control (~15x seed noise); **+2.7-4.4 pts vs the stronger
+  ranking-aware control** (MLP + margin loss, arXiv 2511.10676-style) — the
+  honest effect size. Quality cost: **+0.033 +- 0.016 nats** (3 seeds,
+  init+data variance).
+- A StickyMoE-style temporal-consistency loss (the closest training-time
+  prior art) does NOT buy lookahead predictability: it monotonically reduces
+  hit@k and raises router entropy in our formulation (Exp 7b).
+- Predictability is a **property of the backbone**: fresh post-hoc
+  predictors on the frozen joint backbone recover it fully (linear 0.890;
+  ranking-MLP 0.930 vs 0.903 on baseline) — an inference engine can exploit
+  it without any co-training.
 - Trace-driven cache simulation (honest disk-queue economics): where disk
   slack exists, this accuracy converts to **+3.2% tok/s and -31% misprefetch
-  waste** over the post-hoc control at Colibri-like geometry.
-- Full details in [RESULTS.md](RESULTS.md) (6 experiments, 2 red-team
+  waste** over the post-hoc control at Colibri-like geometry (Exp 5,
+  corrected after red-team round 2).
+- Full details in [RESULTS.md](RESULTS.md) (7 experiments, 2 red-team
   rounds); literature landscape in [RESEARCH.md](RESEARCH.md); method in
   [PLAN.md](PLAN.md).
 

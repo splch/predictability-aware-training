@@ -296,3 +296,60 @@ expert-predictability at every horizon for ~0.02 nats of LM quality, as a
 property of the backbone (Exp 4 isolation test), reproducibly across seeds.
 
 Artifacts: ckpt_A_s{1,2}_{base,lam0.3,posthoc}.pt; run_seeds.log
+
+## Experiment 7: remediation results — ranking control, StickyMoE sweep,
+## data-order variance (2026-07-22/23, 19 runs)
+
+Protocol changes: shuffled 1000-doc stream + EOS (per-seed data order);
+new eval distribution — LM losses NOT comparable to Exp 4/6.
+
+### 7a. Ranking-aware SOTA control (MLP + margin loss, 3000 steps)
+
+| predictor | h=1 | h=2 | h=4 |
+|---|---|---|---|
+| ranking control on BASELINE backbone | 0.903 | 0.863 | 0.794 |
+| ranking control on JOINT backbone | 0.930 | 0.903 | 0.838 |
+| **backbone effect (same strong predictor)** | **+2.7** | **+4.0** | **+4.4** |
+
+The old +6.2-6.8pt headline was inflated by the undermatched linear control:
+a 2511.10676-style predictor on the plain baseline reaches 0.903, above the
+joint model's co-trained 0.888. BUT the causal claim survives intact: under
+the IDENTICAL strong predictor, the joint backbone beats the baseline
+backbone by +2.7-4.4 pts. Revised headline: **training-for-predictability
+buys +3-4 pts of expert-predictability that no tested post-hoc predictor can
+recover** (linear control: +6-7; ranking control: +3-4).
+
+### 7b. StickyMoE sweep (posthoc linear predictor on each sticky backbone)
+
+| arm | h=1 | h=2 | h=4 | entropy | val LM |
+|---|---|---|---|---|---|
+| baseline (V_s0) | 0.822 | 0.791 | 0.724 | 2.264 | 5.949 |
+| sticky 0.3 | 0.808 | 0.774 | 0.707 | 2.485 | 5.945 |
+| sticky 1.0 | 0.793 | 0.754 | 0.682 | 2.599 | 5.957 |
+| sticky 3.0 | 0.774 | 0.734 | 0.658 | 2.676 | 5.976 |
+| stacking (sticky1.0 + pred0.3) | 0.864* | 0.838* | 0.769* | 2.580 | 5.972 |
+(*posthoc on stacking backbone)
+
+**StickyMoE is defused as a competing baseline for OUR metric**: the
+consistency loss monotonically REDUCES layer-ahead predictability and RAISES
+router entropy (forcing adjacent-token gate similarity pushes routing toward
+uniform = harder to predict). It also doesn't stack (0.864 < 0.884 joint-only
+posthoc... matched-stream joint posthoc = V_s0 co-trained 0.884). Caveat:
+StickyMoE's real target is temporal-reuse cache locality, which we do not
+measure; our result only shows it does not buy *lookahead predictability*.
+
+### 7c. Data-order variance (3 seeds, shuffled stream, init+data both vary)
+
+| metric | baseline | joint 0.3 | posthoc control |
+|---|---|---|---|
+| val LM | 5.955 (0.050) | 5.988 (0.057) | — |
+| hit@k h=1 | 0.123 | 0.887 (0.005) | 0.825 (0.003) |
+| hit@k h=2 | 0.129 | 0.863 (0.007) | 0.795 (0.006) |
+| hit@k h=4 | 0.125 | 0.796 (0.010) | 0.729 (0.007) |
+
+Paired effects: **+6.2 +- 0.3 (h=1), +6.8 +- 0.3 (h=4)** vs linear control;
+quality cost **+0.033 +- 0.016 nats**. The init-only error bars of Exp 6
+(+-0.4pt) were NOT misleading: data-order variance is the same magnitude.
+
+Artifacts: ckpt_A_posthoc_rank{,_on_joint}.pt, ckpt_A_sticky{0.3,1.0,3.0}*.pt,
+ckpt_A_stack*.pt, ckpt_V_s{0,1,2}_*.pt; run_remediation.log
