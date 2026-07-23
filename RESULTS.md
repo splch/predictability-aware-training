@@ -375,3 +375,48 @@ Cold-cache TTFT and per-token latency, synthetic Colibri geometry, C=2000:
   (5.4ms) exceeds the 4ms compute window so the fits-in-window guard blocks
   all prefetching — the method needs fetch_time <= compute_window; BW, not
   latency, gates the regime.
+
+## Experiment 9: entropy-matched control + 4x-training undertraining test
+## (2026-07-23)
+
+### 9a. Structure vs sharpening (entropy-penalty ladder, posthoc linear pred)
+
+| backbone | router entropy | posthoc h=1 | h=4 | val LM |
+|---|---|---|---|---|
+| baseline (V_s0) | 2.264 | 0.822 | 0.724 | 5.949 |
+| lambda_ent=0.005 | 1.618 | 0.836 | 0.748 | 5.933 |
+| lambda_ent=0.01 | 1.175 | 0.840 | 0.762 | 5.936 |
+| lambda_ent=0.05 (near-collapse) | 0.275 | 0.883 | 0.857 | 6.021 |
+| joint lambda_pred=0.3 (V_s0) | 2.102 | 0.884 (linear) / **0.930 (ranking)** | 0.796 / 0.838 | 5.963 |
+
+**The sharpening hypothesis is dead.** Crude entropy reduction monotonically
+raises predictability but with brutal diminishing returns: reaching 0.883
+requires near-total routing collapse (entropy 0.275, +0.07 nats), and even
+collapse cannot reach the joint backbone's 0.930 under the ranking control.
+At matched quality, sharpening tops out ~0.84. The joint gain is STRUCTURAL —
+the backbone learns routing that is informative AND forecastable, not merely
+peaked.
+
+Final nail (ranking predictor on the entropy-penalized backbones):
+baseline 0.903/0.863/0.794 < ent0.005 0.912/0.875/0.810 < ent0.01
+0.916/0.884/0.829 < joint 0.930/0.903/0.838. Interpolating to the joint
+model's own entropy (2.06), sharpening alone yields ~0.906-0.910 — so
+**~+2.0-2.4 pts of the joint advantage is pure structure**, unreachable by
+sharpening at any strength, and the rest (~half) is entropy reduction the
+penalty can also buy. But the penalty pays for it in routing information
+(entropy 1.17 vs 2.10) without reaching the same point.
+
+### 9b. Undertraining confound: 4x tokens (100M, Tier A)
+
+| arm | h=1 | h=2 | h=4 | val LM | entropy |
+|---|---|---|---|---|---|
+| U baseline | 0.125 (chance) | | | 4.975 | 1.977 |
+| U posthoc control | 0.839 | 0.797 | 0.708 | — | — |
+| U joint lambda=0.3 | 0.900 | 0.869 | 0.787 | 4.956 | 1.833 |
+| **advantage** | **+6.1** | **+7.2** | **+7.9** | **-0.019 (free!)** | -0.14 |
+
+**The undertraining confound is dead too**: at 4x tokens the joint advantage
+GROWS (h4 +7.9 vs +6.8 at 25M tokens) and the quality cost flips to a slight
+quality GAIN. Baseline routers sharpen naturally with training (2.26 -> 1.98);
+the joint model stays ahead. The effect is not an artifact of immature
+routing.
