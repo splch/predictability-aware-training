@@ -1,5 +1,10 @@
 .venv/
+.venv-rocm/
 __pycache__/
 *.pt
-colab/
+*.log
+*.npz
 engine_*.bin
+.pi-subagents/
+artifacts/
+colab/

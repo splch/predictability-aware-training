@@ -69,6 +69,24 @@ python train.py --tier B --horizons 1,2,4 --mode posthoc --ckpt ckpt_base.pt \
 Developed on an AMD Ryzen AI Max+ 395 (Strix Halo, Radeon 8060S iGPU, gfx1151).
 For CPU-only: install the CPU torch wheel and use `--device cpu`.
 
+## Repository layout
+
+```
+model.py            GPT-style MoE + router + predictor + joint/ctrl losses
+train.py            Tier A/B trainer (joint / posthoc modes, shuffled stream)
+train_olmoe.py      Tier C trainer (OLMoE + LoRA + predictor, isolation modes)
+cache_sim.py        trace-driven cache/prefetch simulator (honest disk queue)
+dump_traces.py      routing-trace export for the simulator
+toy_engine.py       O_DIRECT disk-resident inference engine (end-to-end demo)
+export_engine_model.py  checkpoint -> engine format converter
+scripts/            run chains for every experiment in RESULTS.md
+results_cache_sim.csv   simulator output tables
+README.md / RESEARCH.md / PLAN.md / RESULTS.md / PAPER.md
+```
+
+Checkpoints, traces, logs, and engine blobs are local artifacts (gitignored);
+regenerate them via the scripts above.
+
 ## Status
 
 Complete: Tier A mechanism (3-seed), isolation test, sharpening control,

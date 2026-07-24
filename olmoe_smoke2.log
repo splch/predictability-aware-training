@@ -1,5 +1,0 @@
-mode=joint lambda_pred=0.1 horizons=(1, 2, 4) | trainable 11.7M / 7.05B
-step     0 | lm 12.397 | pred 4.278 | 4 tok/s
-  eval step 3: lm 12.235 pred 4.271 hit@k [h1: 0.130 | h2: 0.128 | h4: 0.112] | ent 3.815 persist 0.116 util_max 0.116
-
-STDERR: none
