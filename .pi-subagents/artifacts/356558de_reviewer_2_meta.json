@@ -1,0 +1,119 @@
+{
+  "runId": "356558de",
+  "agent": "reviewer",
+  "task": "[Read from: /home/spencer/Repositories/predictability-aware-training/plan.md, /home/spencer/Repositories/predictability-aware-training/progress.md]\n\nRED-TEAM ROUND 3 — publication readiness of /home/spencer/Repositories/predictability-aware-training. Read README.md, RESEARCH.md (novelty claim + prior-art tables), RESULTS.md (all experiments), PLAN.md. The evidence arc: toy-scale from-scratch mechanism (3 seeds, robust), structure-not-sharpening, StickyMoE defused, grows with training, sim economics, and a clean boundary result (LoRA fine-tune on OLMoE fails to transfer — pretraining-time only). Assess: (1) What is the strongest honest claim set for a workshop paper (e.g., ICLR/MLSys workshop)? Write the 3-4 bullet claims that survive and the single figure/table that carries each. (2) What would kill this paper at review — the top 3 reviewer objections after all remediation so far, and which (if any) require new experiments vs just careful writing. (3) Is the Tier C negative result a strength (boundary mapping) or a weakness (method doesn't apply to existing models)? How to frame it. (4) The novelty claim wording in RESEARCH.md — final stress test against the prior-art table (StickyMoE, Oracle-MoE, ReMoE, Pre-gated MoE, Halfway SD): any remaining vulnerability? (5) What goes in the paper vs stays in the repo (e.g., the two sim blockers, the label double-shift bug — disclose or omit?). READ-ONLY. Deliver: a concrete paper skeleton (sections, claims, figures) calibrated to the actual evidence.",
+  "exitCode": 0,
+  "usage": {
+    "input": 25171,
+    "output": 7860,
+    "cacheRead": 38912,
+    "cacheWrite": 0,
+    "cost": 0.2050866,
+    "turns": 7
+  },
+  "model": "openrouter/moonshotai/kimi-k3:high",
+  "attemptedModels": [
+    "openrouter/moonshotai/kimi-k3:high"
+  ],
+  "modelAttempts": [
+    {
+      "model": "openrouter/moonshotai/kimi-k3:high",
+      "success": true,
+      "exitCode": 0,
+      "usage": {
+        "input": 25171,
+        "output": 7860,
+        "cacheRead": 38912,
+        "cacheWrite": 0,
+        "cost": 0.2050866,
+        "turns": 7
+      }
+    }
+  ],
+  "durationMs": 286693,
+  "toolCount": 8,
+  "acceptance": {
+    "status": "attested",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "attested",
+      "explicit": false,
+      "inferredReason": [
+        "read-only/reviewer-style agent"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return concrete findings with file paths and severity when applicable",
+          "evidence": [
+            "review-findings",
+            "residual-risks"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "review-findings",
+        "residual-risks"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "read-only/reviewer-style agent"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return concrete findings with file paths and severity when applicable",
+        "evidence": [
+          "review-findings",
+          "residual-risks"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [],
+    "verifyRuns": [],
+    "childReport": {
+      "criteriaSatisfied": [
+        {
+          "id": "criterion-1",
+          "status": "satisfied",
+          "evidence": "Concrete findings with paths/severity: README.md 'Status' section stale (note) — claims Tier A/sim/SOTA control are future work though Exps 4/5/7a complete them; RESULTS.md Exp 5 unexplained joint>oracle anomaly at B=8/C=64, 97.9 vs 97.4 (note); RESULTS.md Exp 7b stacking comparison muddled parenthetical (note); RESEARCH.md novelty claim residual vulnerability vs Pre-gated MoE arXiv 2308.12066 (co-trained pre-gate co-adapts backbone via task loss) and Oracle-MoE (untested emergent-locality predictability) — flagged with rewording; verified arithmetic: Exp 5 headroom fraction 0.034/0.110 and Tier A chance 0.125 check out; no blockers found."
+        }
+      ],
+      "changedFiles": [],
+      "testsAddedOrUpdated": [],
+      "commandsRun": [
+        {
+          "command": "git log --oneline | head -20 && git status --short | head -10 && grep -n 'lambda-pred|lambda-sticky|tier' train.py | head -20",
+          "result": "passed",
+          "summary": "Git history matches RESULTS.md narrative (blockers fixed before reported numbers, headline revised, Tier C bug fixed pre-report); train.py exposes --tier/--lambda-pred/--lambda-sticky/posthoc mode matching README repro commands; only untracked files are .pi-subagents artifacts."
+        }
+      ],
+      "validationOutput": [
+        "Read README.md, RESEARCH.md, RESULTS.md (Exps 1-10 + 2 red-team rounds), PLAN.md in full; cross-checked headline numbers across docs (Exp 4 isolation 0.890 vs 0.829; Exp 6 paired +6.2-6.8pts at +0.023+-0.009 nats; Exp 7a ranking-control +2.7-4.4pts; Exp 9b 4x-training +7.9 at h=4; Exp 10 isolation 0.800 vs 0.799) — internally consistent."
+      ],
+      "residualRisks": [
+        "Numbers are taken from RESULTS.md and git history; experiments were not independently re-run (read-only review, no GPU verification).",
+        "Exp 5 toy-geometry B=8/C=64 row shows joint (97.9) exceeding oracle (97.4) with no explanation in RESULTS.md — a reviewer will flag treatment-beats-oracle; needs a queue-interaction explanation or rerun before submission.",
+        "Novelty vs Pre-gated MoE rests on 'explicit vs implicit predictor-accuracy pressure' — defensible but thin; recommended shifting novelty weight to the isolation and structure-vs-sharpening findings.",
+        "Oracle-MoE's emergent-locality predictability is untested; one acknowledging sentence closes the hole but a motivated reviewer could demand the measurement.",
+        "No downstream-task quality evaluation exists; the +0.02-0.03 nat cost is val-LM-only."
+      ],
+      "noStagedFiles": true,
+      "diffSummary": "No changes — read-only review; delivered claim set, top-3 reviewer objections, Tier C framing, novelty stress test, paper-vs-repo disclosure split, and a calibrated workshop paper skeleton.",
+      "reviewFindings": [
+        "no blockers",
+        "note: README.md Status section - stale (says Tier A/sim/SOTA control are 'next'; all completed in Exps 4/5/7a, Tier C done)",
+        "note: RESULTS.md Exp 5 - joint predictor (97.9 tok/s) exceeds oracle (97.4) at toy B=8/C=64, unexplained",
+        "note: RESULTS.md Exp 7b - stacking comparison parenthetical mixes posthoc-on-stacking with co-trained numbers; rewrite as clean table row",
+        "note: RESEARCH.md novelty claim - Pre-gated MoE (2308.12066) co-adaptation is the residual threat; Oracle-MoE emergent predictability untested; ranking control is in-house reimplementation of 2511.10676 and must be labeled as such"
+      ],
+      "manualNotes": "Deliverable answers all 5 task questions: (1) four surviving claims each mapped to a single carrying exhibit (C1 isolation table, C2 entropy-frontier money figure, C3 paired-seed+4x-training table, C4 sim-waste figure + Tier C table); honest headline is +3-4pts vs ranking control. (2) Top objections: scale/generality (writing fix), sim-to-real gap (mostly writing, report bandwidth gating), quality accounting (one cheap downstream probe prudent). (3) Tier C is a strength — frame as boundary mapping; the whole training-time literature shares the pretraining-only boundary. (4) Novelty survives with rewording; shift weight to empirical findings. (5) Omit the two sim blockers and the double-shift bug from the paper (fixed pre-report; audit trail stays in repo); report dual-control headline in the paper."
+    }
+  },
+  "transcriptPath": "/home/spencer/Repositories/predictability-aware-training/.pi-subagents/artifacts/356558de_reviewer_2_transcript.jsonl",
+  "timestamp": 1784900903629
+}

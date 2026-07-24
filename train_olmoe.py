@@ -102,29 +102,43 @@ def apply_lora(model, r, alpha):
 class Predictor(nn.Module):
     """Per-(layer, horizon) linear heads: pre-MoE hidden at l -> router at l+h."""
 
-    def __init__(self, n_layers, d_model, n_experts, horizons):
+    def __init__(self, n_layers, d_model, n_experts, horizons, arch="linear"):
         super().__init__()
         self.horizons = horizons
+        self.arch = arch
         self.heads = nn.ParameterDict()
+        self.mlps = nn.ModuleDict()
         for h in horizons:
             for l in range(n_layers - h):
-                w = torch.empty(d_model, n_experts)
-                nn.init.normal_(w, std=0.02)
-                self.heads[f"h{h}_l{l}"] = nn.Parameter(w)
+                key = f"h{h}_l{l}"
+                if arch == "mlp":
+                    self.mlps[key] = nn.Sequential(
+                        nn.Linear(d_model, d_model), nn.GELU(),
+                        nn.Linear(d_model, n_experts))
+                else:
+                    w = torch.empty(d_model, n_experts)
+                    nn.init.normal_(w, std=0.02)
+                    self.heads[key] = nn.Parameter(w)
 
     def forward(self, layer_hiddens):
+        if self.mlps:
+            return {h: [self.mlps[f"h{h}_l{l}"](layer_hiddens[l].to(self.mlps[f"h{h}_l{l}"][0].weight.dtype))
+                        for l in range(len(layer_hiddens) - h)]
+                    for h in self.horizons}
         return {h: [layer_hiddens[l] @ self.heads[f"h{h}_l{l}"].to(layer_hiddens[l].dtype)
                     for l in range(len(layer_hiddens) - h)]
                 for h in self.horizons}
 
     def reinit(self):
-        for w in self.heads.values():
-            nn.init.normal_(w, std=0.02)
+        for p in self.parameters():
+            if p.dim() >= 2:
+                nn.init.normal_(p, std=0.02)
 
 
 # --------------------------------------------------------------- model ----
 class OlmoePredictability(nn.Module):
-    def __init__(self, lm, horizons, lambda_pred=0.0, lambda_bal=0.0):
+    def __init__(self, lm, horizons, lambda_pred=0.0, lambda_bal=0.0,
+                 pred_arch="linear", pred_loss="softce"):
         super().__init__()
         self.lm = lm
         cfg = lm.config
@@ -133,8 +147,9 @@ class OlmoePredictability(nn.Module):
         self.top_k = cfg.num_experts_per_tok
         self.lambda_pred = lambda_pred
         self.lambda_bal = lambda_bal
+        self.pred_loss = pred_loss
         self.predictor = Predictor(self.n_layers, cfg.hidden_size,
-                                   self.n_experts, horizons)
+                                   self.n_experts, horizons, arch=pred_arch)
         self._hid, self._logits, self._idx = [], [], []
         for layer in lm.model.layers:
             layer.mlp.register_forward_pre_hook(self._cap_hidden)
@@ -166,7 +181,13 @@ class OlmoePredictability(nn.Module):
                 true = topks[l + h]
                 soft = torch.zeros(B, T, E, device=pl.device)
                 soft.scatter_(-1, true, 1.0 / k)
-                loss_pred = loss_pred + -(soft * F.log_softmax(pl.float(), -1)).sum(-1).mean()
+                if self.pred_loss == "ranking":
+                    tmask = soft.bool()
+                    neg = pl.float().masked_fill(tmask, -1e9).max(-1).values
+                    posv = pl.float().masked_fill(~tmask, 1e9).min(-1).values
+                    loss_pred = loss_pred + F.relu(1.0 - (posv - neg)).mean()
+                else:
+                    loss_pred = loss_pred + -(soft * F.log_softmax(pl.float(), -1)).sum(-1).mean()
                 n_terms += 1
                 with torch.no_grad():
                     pt = pl.topk(k, -1).indices
@@ -260,6 +281,8 @@ def main():
     p.add_argument("--horizons", default="1,2,4")
     p.add_argument("--lambda-pred", type=float, default=0.0)
     p.add_argument("--lambda-bal", type=float, default=0.0)
+    p.add_argument("--pred-arch", choices=["linear", "mlp"], default="linear")
+    p.add_argument("--pred-loss", choices=["softce", "ranking"], default="softce")
     p.add_argument("--lora-r", type=int, default=16)
     p.add_argument("--lora-alpha", type=float, default=32.0)
     p.add_argument("--steps", type=int, default=6000)
@@ -291,7 +314,8 @@ def main():
     horizons = tuple(h for h in horizons if 1 <= h < n_l)  # clamp for --tiny
     assert horizons, "no valid horizons"
     model = OlmoePredictability(lm, horizons, args.lambda_pred,
-                                args.lambda_bal).to(args.device)
+                                args.lambda_bal, args.pred_arch,
+                                args.pred_loss).to(args.device)
     if args.ckpt:
         sd = torch.load(args.ckpt, weights_only=True)
         sd = {k: v for k, v in sd.items() if not k.startswith("predictor.")}

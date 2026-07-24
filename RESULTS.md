@@ -226,6 +226,13 @@ Findings (corrected):
 5. h=4 prediction is worth less than h=1 despite similar accuracy (fewer
    fittable windows, more lead than needed): engine horizon choice matters.
 
+Addendum (round-3): the table above feeds LINEAR-control accuracies
+(0.826/0.888). At RANKING-control accuracies (0.903 base vs 0.930 joint):
+demand 0.876, base 1.093, joint 1.109, oracle 1.161 -> joint-vs-base
+**+1.5% tok/s and -25% waste** (21.3 -> 16.0 MB/tok). Both conversions
+(linear +3.2%/-31%, ranking +1.5%/-25%) should be reported; the ranking
+numbers pair with the honest effect size from Exp 7a.
+
 Artifacts: traces_{base,joint}.npz, results_cache_sim.csv, cache_sim.py
 
 ## Red-team round 2 (2026-07-22, three subagents)
@@ -328,7 +335,8 @@ recover** (linear control: +6-7; ranking control: +3-4).
 | sticky 1.0 | 0.793 | 0.754 | 0.682 | 2.599 | 5.957 |
 | sticky 3.0 | 0.774 | 0.734 | 0.658 | 2.676 | 5.976 |
 | stacking (sticky1.0 + pred0.3) | 0.864* | 0.838* | 0.769* | 2.580 | 5.972 |
-(*posthoc on stacking backbone)
+(*posthoc on stacking backbone; comparison point is the joint-only
+co-trained predictor 0.884 — no posthoc-on-V-joint run exists)
 
 **StickyMoE is defused as a competing baseline for OUR metric**: the
 consistency loss monotonically REDUCES layer-ahead predictability and RAISES
@@ -387,7 +395,10 @@ Cold-cache TTFT and per-token latency, synthetic Colibri geometry, C=2000:
 | lambda_ent=0.005 | 1.618 | 0.836 | 0.748 | 5.933 |
 | lambda_ent=0.01 | 1.175 | 0.840 | 0.762 | 5.936 |
 | lambda_ent=0.05 (near-collapse) | 0.275 | 0.883 | 0.857 | 6.021 |
-| joint lambda_pred=0.3 (V_s0) | 2.102 | 0.884 (linear) / **0.930 (ranking)** | 0.796 / 0.838 | 5.963 |
+| joint lambda_pred=0.3, co-trained linear | 2.102 | 0.884 | 0.796 | 5.963 |
+| joint lambda_pred=0.3, ranking posthoc* | 2.065 | **0.930** | **0.838** | 5.793 |
+(*ranking-control rows measured on the Exp 4 ckpt_A_lam0.3 backbone — old
+stream — but under the same new-stream eval set as the rest of the table.)
 
 **The sharpening hypothesis is dead.** Crude entropy reduction monotonically
 raises predictability but with brutal diminishing returns: reaching 0.883
@@ -454,3 +465,60 @@ Interpretation:
   feasible (~26GB optimizer for 4 blocks) but multi-day. Not pursued yet.
 
 Artifacts: ckpt_C_{base,lam0.1,posthoc,posthoc_on_joint}.pt; run_tierC2.log
+
+### Exp 10 addendum (round-3 remediation)
+
+- **Ceiling artifact ruled out**: the strong ranking-MLP posthoc (177M params)
+  gives 0.845/0.801/0.739 on base vs 0.845/0.801/0.741 on joint — a tie
+  under both a weak and a strong probe. The negative is a property of the
+  backbone, not of the linear probe (red-team attack 5 closed).
+- **Caveat on strength of the negative claim**: it rests on one seed x
+  lambda=0.1 x LoRA r16 x 25M tokens. Routers received gradient (max
+  |Delta gate| = 0.02) but behavior was inert; "intervention too weak" and
+  "pretraining-time only" are both consistent. Claim is scoped accordingly:
+  a 25M-token LoRA-r16 fine-tune at lambda=0.1 does not transfer
+  predictability; heavier fine-tuning is untested.
+- The +4.3pt co-adaptation gap (0.842 co-trained vs 0.800 posthoc) is
+  deployable ONLY if the engine ships the exact co-trained predictor; it
+  does not survive predictor re-training (the deployable configuration).
+- Correction: "LoRA converged by step 1000" referred to LM loss; the
+  co-trained predictor kept improving through step 9000.
+
+## Experiment 11: real-engine end-to-end demo (2026-07-24)
+
+`toy_engine.py`: purpose-built disk-resident engine for the Tier A model —
+dense backbone in RAM, 192 experts (2.88MB bf16) read via O_DIRECT pread
+(bypasses page cache), LRU cache with hard budget, single-disk priority
+queue (demand > prefetch), prefetch thread fed by the trained posthoc
+predictor (horizon-1 linear heads). Validated vs the reference model
+(top-1 match, logit cosine 0.9999). Arms: ckpt_A_posthoc (baseline backbone
++ fresh posthoc predictor) vs ckpt_A_posthoc_on_joint (joint backbone +
+fresh posthoc predictor) — the deployable configuration.
+
+Steady-state decode tok/s, C=64 of 192 experts, B=1, 300 tokens/run:
+
+| prompt | base+prefetch | joint+prefetch | delta |
+|---|---|---|---|
+| 13 | 51.29 | 51.20 | -0.2% |
+| 100 | 51.15 | 47.57 | -7.0% |
+| 1000 | 47.65 | 54.57 | +14.5% |
+| 42 | 50.92 | 53.76 | +5.6% |
+| 500 | 47.91 | 51.05 | +6.6% |
+| 5000 | 46.35 | 51.86 | +11.9% |
+| **mean** | **49.21** | **51.67** | **+5.0%** |
+
+- Demand-only floors: base 48.4, joint 44.4 tok/s (the joint backbone's
+  routing has slightly less LRU reuse locality; prefetch more than
+  compensates). Prediction-general uplift: +3-19% over demand.
+- C=96 spot check (prompts 13/1000): base 65.2/77.4, joint 68.1/71.1 —
+  mixed, noise dominates at higher hit rates.
+- Cache hit rate: base 0.495, joint 0.518 (+2.3pts).
+
+Interpretation: the real engine confirms the simulator's prediction
+(direction and rough magnitude: sim +3%, engine mean +5.0% over 6 prompts,
+range -7% to +14.5%). Per-sequence variance is large at toy scale; the
+result is a qualitative end-to-end confirmation, not a precise measurement.
+The clean quantitative systems claim remains the sim + sensitivity grid.
+
+Artifacts: engine_{base,joint}.{backbone,predictor}.pt, .experts.bin;
+toy_engine.py, export_engine_model.py

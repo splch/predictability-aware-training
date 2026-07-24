@@ -1,0 +1,138 @@
+{
+  "runId": "356558de",
+  "agent": "reviewer",
+  "task": "[Read from: /home/spencer/Repositories/predictability-aware-training/plan.md, /home/spencer/Repositories/predictability-aware-training/progress.md]\n\nRED-TEAM ROUND 3 — full-arc audit of /home/spencer/Repositories/predictability-aware-training before writeup. Read RESULTS.md (all 10 experiments + 2 red-team sections), README.md, and check the run logs (run_*.log) for consistency with the published tables. The project is about to write up: (a) joint predictability training works from scratch (+6.2pts vs linear, +3-4pts vs ranking control, 3 seeds), (b) backbone property via isolation test at Tier A, (c) structure not sharpening, (d) StickyMoE defused, (e) effect grows at 4x tokens, (f) systems conversion +3.2% tok/s / -31% waste, (g) TIER C NEGATIVE: LoRA fine-tune on OLMoE does NOT transfer predictability to the backbone (posthoc-on-joint 0.800 == posthoc-on-base 0.799). Attack specifically: (1) Is the Tier C negative result itself underpowered? Single seed, single lambda (0.1), single LoRA rank (16), 25M tokens, one model — the claim 'pretraining-time only' rests on one configuration of one method of light fine-tuning. What alternative explanations exist (lambda too weak for a 4.16-nat-entropy router? LoRA capacity? predictor loss scale vs LM loss 2.1)? Which controls would a reviewer demand before accepting the negative? (2) Cross-protocol consistency: Exp 4-6 used the old stream, Exp 7+ used shuffled+EOS — are any published comparisons crossing protocols? (3) The 'co-adaptation gap is not deployable value' claim in Exp 10 — is that fully justified, or could co-adapted predictors be deployed (engine uses the exact predictor from training)? (4) Any numbers in tables that don't match logs. (5) The isolation-test logic: posthoc-on-joint ≈ posthoc-on-base is taken as 'backbone unchanged' — could it instead mean the posthoc predictor saturates a ceiling (both at 0.80, ceiling ~0.85?)? What measurement distinguishes 'backbone unchanged' from 'predictor ceiling'? READ-ONLY, quick CPU checks OK. Ranked findings with severity + fixes.",
+  "exitCode": 0,
+  "usage": {
+    "input": 70649,
+    "output": 20125,
+    "cacheRead": 518144,
+    "cacheWrite": 0,
+    "cost": 0.6692651999999999,
+    "turns": 20
+  },
+  "model": "openrouter/moonshotai/kimi-k3:high",
+  "attemptedModels": [
+    "openrouter/moonshotai/kimi-k3:high"
+  ],
+  "modelAttempts": [
+    {
+      "model": "openrouter/moonshotai/kimi-k3:high",
+      "success": true,
+      "exitCode": 0,
+      "usage": {
+        "input": 70649,
+        "output": 20125,
+        "cacheRead": 518144,
+        "cacheWrite": 0,
+        "cost": 0.6692651999999999,
+        "turns": 20
+      }
+    }
+  ],
+  "durationMs": 730052,
+  "toolCount": 27,
+  "acceptance": {
+    "status": "attested",
+    "explicit": false,
+    "effectiveAcceptance": {
+      "level": "attested",
+      "explicit": false,
+      "inferredReason": [
+        "read-only/reviewer-style agent"
+      ],
+      "criteria": [
+        {
+          "id": "criterion-1",
+          "must": "Return concrete findings with file paths and severity when applicable",
+          "evidence": [
+            "review-findings",
+            "residual-risks"
+          ],
+          "severity": "required"
+        }
+      ],
+      "evidence": [
+        "review-findings",
+        "residual-risks"
+      ],
+      "verify": [],
+      "stopRules": []
+    },
+    "inferredReason": [
+      "read-only/reviewer-style agent"
+    ],
+    "criteria": [
+      {
+        "id": "criterion-1",
+        "must": "Return concrete findings with file paths and severity when applicable",
+        "evidence": [
+          "review-findings",
+          "residual-risks"
+        ],
+        "severity": "required"
+      }
+    ],
+    "runtimeChecks": [],
+    "verifyRuns": [],
+    "childReport": {
+      "criteriaSatisfied": [
+        {
+          "id": "criterion-1",
+          "status": "satisfied",
+          "evidence": "Six ranked findings with file paths/line refs and severity: HIGH Tier-C underpowered negative (RESULTS.md Exp 10; run_tierC2.log; ckpt diff probe |Δgate|=0.020), HIGH systems headline anchored to linear control (Exp 5 vs Exp 7a accuracies), MEDIUM Tier-C ceiling confound (run_tierC2.log:1541,1567), MEDIUM co-adaptation deployability overclaim (run_tierC2.log:776,1404; 41 predictor keys in ckpt_C_lam0.1.pt), MEDIUM Exp 9a/7b mislabeled/mixed-protocol rows (run_remediation.log:2681,2044,319), LOW wording nits. All published tables verified against logs or reproduced via cache_sim.py re-runs."
+        }
+      ],
+      "changedFiles": [],
+      "testsAddedOrUpdated": [],
+      "commandsRun": [
+        {
+          "command": "grep/sed final evals across run_tierC2.log, run_seeds.log, run_remediation.log, run_tierA2.log, run_ent_rank.log, run_undertrain2.log, run_tierB/h124/lambda logs vs RESULTS.md tables",
+          "result": "passed",
+          "summary": "Every published table entry matches the run logs (incl. recomputed Exp 6/7c means and stds)"
+        },
+        {
+          "command": ".venv/bin/python cache_sim.py --synthetic",
+          "result": "passed",
+          "summary": "Colibri table reproduces exactly: demand 0.876, base 1.051, joint 1.085, oracle 1.161; waste 34.6->24.0 MB/tok"
+        },
+        {
+          "command": ".venv/bin/python cache_sim.py --ttft",
+          "result": "passed",
+          "summary": "Exp 8 TTFT/p50/p99 reproduce exactly (2398/2156/2133/2110ms TTFT)"
+        },
+        {
+          "command": "python checkpoint diff of ckpt_C_base.pt vs ckpt_C_lam0.1.pt",
+          "result": "passed",
+          "summary": "Routers trainable and received gradient (max |Δgate|=0.020, max |ΔLoRA|=0.038) yet behavior flat — Tier C intervention real but inert at 25M tokens"
+        }
+      ],
+      "validationOutput": [
+        "Exp 6: joint h1 mean(0.887,0.890,0.888)=0.888 matches; quality cost +0.023±0.009 matches",
+        "Exp 7c: means/stds recomputed from log evals match (e.g. joint LM 5.988±0.057, h1 +6.2±0.3)",
+        "Exp 10: posthoc-on-base 0.799 vs posthoc-on-joint 0.800 confirmed at run_tierC2.log:1404,1567",
+        "Exp 7a ranking numbers were re-measured on the NEW eval set (lm 5.914/5.961), defusing most cross-protocol concerns"
+      ],
+      "residualRisks": [
+        "Tier C 'pretraining-time only' claim will not survive review without lambda/rank/seed sweeps or explicit scoping to (LoRA r16, lambda=0.1, 25M tokens, 1 model)",
+        "Tier C isolation test used only the linear head; a ranking-MLP posthoc on both Tier C backbones (~1h) is needed to exclude a predictor-ceiling artifact",
+        "Systems headline (+3.2% tok/s, -31% waste) is computed from linear-control accuracies; ranking-control conversion not yet measured (one cheap cache_sim run)",
+        "Exp 9a/7b cite a 'posthoc on joint (new stream)' run that does not exist; numbers labeled posthoc are actually co-trained"
+      ],
+      "noStagedFiles": true,
+      "diffSummary": "No changes — read-only audit of RESULTS.md/README.md against run logs, checkpoints, and simulator re-runs",
+      "reviewFindings": [
+        "no blockers: every number in RESULTS.md/README.md matches run logs or reproduced simulator output",
+        "HIGH: RESULTS.md Exp 10 - 'pretraining-time only' rests on 1 seed x lambda=0.1 x LoRA r16 x 25M tokens; ckpt diff shows intervention applied but inert; scope the claim or add sweeps",
+        "HIGH: Exp 5/8 systems conversion uses Exp 6 linear-control accuracies though Exp 7a established the ranking control as honest baseline; re-run cache_sim with 0.903 vs 0.930",
+        "MEDIUM: Tier C isolation test (RESULTS.md Exp 10) cannot exclude predictor ceiling - only linear posthoc used; run ranking-MLP posthoc on both backbones",
+        "MEDIUM: 'co-adaptation gap not deployable' overclaimed - co-trained predictor ships inside ckpt_C_lam0.1.pt; reframe as 'not a backbone property'",
+        "MEDIUM: Exp 9a row mixes V_s0 and ckpt_A numbers and labels co-trained 0.884 as posthoc; Exp 7b stacking comparison cites a nonexistent posthoc-on-V-joint run",
+        "LOW: 'LoRA converged by step 1000' (predictor improved to step 9000); Exp 9b control ran 4000 steps undisclosed; README pairs Exp6 table with Exp7c cost"
+      ],
+      "manualNotes": "Two cheap pre-writeup runs recommended: (1) cache_sim --synthetic with ranking-control accuracies 0.903/0.930; (2) ranking-MLP posthoc on ckpt_C_base and ckpt_C_lam0.1. Both are hours at most and neutralize the two strongest reviewer attacks."
+    }
+  },
+  "transcriptPath": "/home/spencer/Repositories/predictability-aware-training/.pi-subagents/artifacts/356558de_reviewer_0_transcript.jsonl",
+  "timestamp": 1784901346980
+}

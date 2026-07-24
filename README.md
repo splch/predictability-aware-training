@@ -71,5 +71,7 @@ For CPU-only: install the CPU torch wheel and use `--device cpu`.
 
 ## Status
 
-Early validation at 94M scale. Next: Tier A (450M params, 16 experts),
-cache-hit to tok/s simulation, stronger SOTA control. See RESULTS.md.
+Complete: Tier A mechanism (3-seed), isolation test, sharpening control,
+StickyMoE baseline, 4x-training run, cache simulator + TTFT + sensitivity,
+real-engine demo, Tier C OLMoE boundary. See RESULTS.md (11 experiments).
+Next: workshop writeup.
