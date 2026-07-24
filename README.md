@@ -40,6 +40,11 @@ backbone (the SOTA deployment pattern).
   slack exists, this accuracy converts to **+3.2% tok/s and -31% misprefetch
   waste** over the post-hoc control at Colibri-like geometry (Exp 5,
   corrected after red-team round 2).
+- **Boundary result (Tier C)**: the effect is pretraining-time only. A LoRA
+  fine-tune on pretrained OLMoE-1B-7B raised the co-trained predictor but
+  left the backbone's intrinsic predictability unchanged (isolation test:
+  0.800 vs 0.799) — the method must be applied during pretraining, not
+  retrofitted (Exp 10).
 - Full details in [RESULTS.md](RESULTS.md) (7 experiments, 2 red-team
   rounds); literature landscape in [RESEARCH.md](RESEARCH.md); method in
   [PLAN.md](PLAN.md).

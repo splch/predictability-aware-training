@@ -420,3 +420,37 @@ GROWS (h4 +7.9 vs +6.8 at 25M tokens) and the quality cost flips to a slight
 quality GAIN. Baseline routers sharpen naturally with training (2.26 -> 1.98);
 the joint model stays ahead. The effect is not an artifact of immature
 routing.
+
+## Experiment 10: Tier C — OLMoE-1B-7B LoRA fine-tune (2026-07-24)
+
+Real pretrained MoE (16 layers, 64 experts top-8, trained on 3T tokens),
+LoRA r16 on attn+experts + trainable routers + predictor (11.7M trainable),
+25M tokens FineWeb-edu, horizons {1,2,4}. (Note: a label double-shift bug
+was caught and fixed mid-run; final loss ~2.11, zero-shot ~1.83 on stream.)
+
+| arm | h=1 | h=2 | h=4 | val LM | entropy |
+|---|---|---|---|---|---|
+| posthoc on baseline backbone | 0.799 | 0.781 | 0.752 | 2.113 | 3.748 |
+| posthoc on JOINT backbone (isolation) | 0.800 | 0.783 | 0.755 | 2.114 | 3.745 |
+| joint co-trained predictor | 0.842 | 0.822 | 0.794 | 2.113 | 3.745 |
+
+**The isolation test FAILS at fine-tune scale**: posthoc-on-joint ==
+posthoc-on-base (0.800 vs 0.799). The co-trained predictor's +4.3pt edge is
+pure co-adaptation; the pretrained backbone itself did NOT become more
+predictable. Diagnostics agree: entropy flat (3.745 vs 3.748), LoRA converged
+by step 1000, router untouched by 25M tokens of LoRA-scale gradient.
+
+Interpretation:
+- Predictability-aware training is a **pretraining-time technique** (as the
+  original proposal states). Tier A (from scratch) transferred predictability
+  into the backbone exactly; a LoRA fine-tune on a 3T-token model does not.
+- Positive side: the baseline posthoc control at real scale reaches 0.799 h1
+  (vs Colibri's 71.6% on GLM-5.2) — post-hoc predictors are strong on real
+  models, and that is the number training must beat at pretraining scale.
+- The +4-4pt "co-adaptation gap" (0.842 vs 0.800) is NOT deployable value:
+  an engine training its own predictor gets the 0.800, not the 0.842.
+- Open: would heavier fine-tuning (unfrozen blocks, full FT) move the
+  backbone? Memory-bound on this box for full FT; unfrozen-last-k-blocks is
+  feasible (~26GB optimizer for 4 blocks) but multi-day. Not pursued yet.
+
+Artifacts: ckpt_C_{base,lam0.1,posthoc,posthoc_on_joint}.pt; run_tierC2.log
