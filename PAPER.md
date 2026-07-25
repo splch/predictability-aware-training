@@ -2,6 +2,12 @@
 
 **Workshop draft (6–8 pp equivalent). Evidence base: this repository, Experiments 1–11.**
 
+![Structure-not-sharpening frontier and throughput conversion](paper_figure.png)
+*Figure: (left) the entropy-penalty frontier plateaus at ~0.91 hit@1 while the
+predictability-trained backbone reaches 0.930 at matched entropy (Exp 9a);
+(right) decode throughput and misprefetch waste at Colibri-like geometry
+(Exp 5, corrected).*
+
 ## Abstract
 
 Inference engines such as Colibri run 744B-parameter Mixture-of-Experts (MoE)

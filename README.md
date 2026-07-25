@@ -14,6 +14,8 @@ predictable.
 
 ## Headline results (Tier A: 341M-param MoE, 16 experts, 3 seeds)
 
+![money figure](paper_figure.png)
+
 hit@k = fraction of tokens where the predictor's top-2 matches the router's
 realized top-2, measured h layers ahead (chance = 0.125). Between-seed std
 in parens; post-hoc control = fresh linear predictor on the frozen baseline
