@@ -601,3 +601,29 @@ LoRA rank, one token count; unfrozen-block / full-FT fine-tuning untested.
 
 Artifacts: ckpt_C_lam1.0{,_posthoc,_posthoc_rank}.pt; scripts/run_tierC_lam1.sh;
 artifacts/run_tierC_lam1.log
+
+## Experiment 14: ranking control, 3 seeds (2026-08-01)
+
+Exp 7a's ranking-aware SOTA control was single-seed. Fresh ranking-MLP
+posthoc predictors (3000 steps, same protocol) on the seed-1/2 backbone
+pairs; seed-0 numbers from Exp 7a.
+
+| hit@k | base s0/s1/s2 | joint s0/s1/s2 | delta (mean +- sd, pp) |
+|---|---|---|---|
+| h=1 | 0.903 / 0.904 / 0.903 | 0.930 / 0.934 / 0.934 | **+2.9 +- 0.2** |
+| h=2 | 0.863 / 0.867 / 0.864 | 0.903 / 0.910 / 0.909 | **+4.3 +- 0.3** |
+| h=4 | 0.794 / 0.796 / 0.794 | 0.838 / 0.849 / 0.854 | **+5.2 +- 0.8** |
+
+- The honest effect size is now 3-seed: **+2.9 / +4.3 / +5.2 pts** (h=1/2/4),
+  ~10-25x the seed noise. Slightly LARGER than the single-seed Exp 7a
+  estimates (+2.7/+4.0/+4.4), and at h=4 the ranking-control effect (+5.2)
+  approaches the linear-control effect (+6.4-6.8): the stronger the probe,
+  the more of the joint backbone's extra predictability it extracts — but it
+  never closes the gap.
+- Sim conversion at the 3-seed ranking accuracies (h=1: 0.903 vs 0.933):
+  1.093 -> 1.111 tok/s = **+1.6%** (was +1.5%), waste 21.2 -> 15.4 MB/tok =
+  **-27%** (was -25%). The Exp 5 ranking-control conversion is unchanged in
+  practice.
+
+Artifacts: ckpt_A_s{1,2}_posthoc_rank{,_on_joint}.pt; scripts/run_rank_seeds.sh;
+artifacts/run_rank_seeds.log

@@ -27,9 +27,9 @@ backbone (the SOTA deployment pattern).
 | **joint predictability training (lambda=0.3)** | **0.888 (0.002)** | **0.865 (0.002)** | **0.796 (0.004)** | 5.790 (0.006) |
 
 - **+6.2-6.8 pts of expert-predictability at every horizon** vs the linear
-  post-hoc control (~15x seed noise); **+2.7-4.4 pts vs the stronger
-  ranking-aware control** (MLP + margin loss, arXiv 2511.10676-style) — the
-  honest effect size. Quality cost: **+0.033 +- 0.016 nats** (3 seeds,
+  post-hoc control (~15x seed noise); **+2.9-5.2 pts vs the stronger
+  ranking-aware control** (MLP + margin loss, arXiv 2511.10676-style,
+  3 seeds, Exp 14) — the honest effect size. Quality cost: **+0.033 +- 0.016 nats** (3 seeds,
   init+data variance).
 - A StickyMoE-style temporal-consistency loss (the closest training-time
   prior art) does NOT buy lookahead predictability: it monotonically reduces

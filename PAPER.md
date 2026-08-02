@@ -21,8 +21,8 @@ training loss, so the model is optimized jointly for quality and for being
 forecastable. At 341M-parameter scale we show that (i) predictability is a
 trainable, transferable **backbone property** — a fresh post-hoc predictor on
 the frozen jointly-trained backbone recovers the full gain (+6–7 pts top-k
-hit rate over a linear control, +3–4 pts over a ranking-aware control, 3
-seeds); (ii) the gain is **structural, not sharpening** — entropy penalties
+hit rate over a linear control, +2.9–5.2 pts over a ranking-aware control;
+both 3 seeds); (ii) the gain is **structural, not sharpening** — entropy penalties
 at any strength cannot reach it at matched entropy; (iii) it **grows with
 training** while its quality cost vanishes; and (iv) it converts to systems
 value (+3.2% tok/s, −31% misprefetch waste in a disk-queue-accurate
@@ -65,7 +65,7 @@ Contributions, each matched to an exhibit:
   quality cost flips to a small gain (Table 2).
 - **C4 — The accuracy converts to systems value, with a mapped boundary.**
   +3.2% tok/s and −31% misprefetch waste over the post-hoc control at
-  Colibri-like geometry (+1.5%/−25% at ranking-control accuracies), gated by
+  Colibri-like geometry (+1.6%/−27% at ranking-control accuracies), gated by
   fetch_time ≤ compute_window; +5.0% mean tok/s in a real O_DIRECT engine;
   and a LoRA fine-tune on a pretrained model recovers only a fraction of the
 effect even at 10x loss pressure — the method is pretraining-time only
@@ -157,11 +157,12 @@ the fresh-predictor-on-joint-backbone isolation configuration.
 | baseline | 0.826 (0.003) | 0.797 (0.002) | 0.732 (0.004) | 5.767 (0.006) |
 | **joint (λ=0.3)** | **0.888 (0.002)** | **0.865 (0.002)** | **0.796 (0.004)** | 5.790 (0.006) |
 
-Under the stronger ranking-MLP control (single seed): baseline 0.903 /
-0.863 / 0.794 vs joint **0.930 / 0.903 / 0.838** — the advantage compresses
-to **+2.7 / +4.0 / +4.4 pts** but survives intact under an identical
-predictor. We report +6–7 (linear) and +3–4 (ranking) as dual honest effect
-sizes throughout. Paired quality cost: +0.023 ± 0.009 nats (Exp 6 protocol);
+Under the stronger ranking-MLP control (3 seeds, Exp 14): baseline
+0.903 (0.001) / 0.865 (0.002) / 0.795 (0.001) vs joint **0.933 (0.002) /
+0.907 (0.004) / 0.847 (0.008)** — the advantage compresses to
+**+2.9 ± 0.2 / +4.3 ± 0.3 / +5.2 ± 0.8 pts** (10–25x seed noise) but
+survives intact under an identical predictor. We report +6–7 (linear) and
++3–5 (ranking) as dual honest effect sizes throughout. Paired quality cost: +0.023 ± 0.009 nats (Exp 6 protocol);
 +0.033 ± 0.016 with data-order variance included.
 
 ### 4.2 The isolation test (C1)
@@ -226,8 +227,8 @@ in §4.
 joint 1.085 → oracle 1.161 (linear-control accuracies): **+3.2% joint vs
 base, −31% misprefetch waste (24.0 vs 34.6 MB/tok)**, ~31% of the
 base-to-oracle headroom captured. At ranking-control accuracies (0.903 vs
-0.930): **+1.5% and −25% waste** — the conversion paired with the honest
-effect size. TTFT (cold cache): −11% from prediction generally, −1–3% joint
+0.933, 3-seed): **+1.6% and −27% waste** — the conversion paired with the
+honest effect size. TTFT (cold cache): −11% from prediction generally, −1–3% joint
 vs base — not the differentiator.
 
 **Gating condition.** Across a 3×3 latency/bandwidth grid the joint-vs-base
@@ -259,7 +260,7 @@ tie under both probes. At 10x pressure (λ=1.0) a small backbone effect
 appears — +1.3/+1.8/+2.6 pts under the linear probe, +0.2/+0.6/+1.4 under
 the ranking probe, growing with horizon — at +0.011 nats and with router
 entropy flat (3.719 vs 3.748, so not sharpening). But this remains **3–5x
-weaker than the pretraining effect** at matched probe (+6–7 linear, +3–4
+weaker than the pretraining effect** at matched probe (+6–7 linear, +3–5
 ranking, Tier A): the boundary is dose-dependent, not a strict zero, and the
 pretraining regime is qualitatively different. We read this as **boundary
 mapping, not failure**: representations must be shaped while plastic; the
