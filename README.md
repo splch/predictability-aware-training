@@ -46,8 +46,8 @@ backbone (the SOTA deployment pattern).
   fine-tune on pretrained OLMoE-1B-7B at Exp-10 pressure left the backbone's
   intrinsic predictability unchanged (isolation test: 0.800 vs 0.799); at
   10x pressure a small transfer appears (+1.3-2.6 pts linear probe) but
-  remains 3-5x weaker than the pretraining effect — the method must be
-  applied during pretraining, not retrofitted (Exps 10, 13).
+  remains 2.5-5x weaker than the pretraining effect under that probe — the
+  method must be applied during pretraining, not retrofitted (Exps 10, 13).
 - Full details in [RESULTS.md](RESULTS.md) (13 experiments, 3 red-team
   rounds); literature landscape in [RESEARCH.md](RESEARCH.md); method in
   [PLAN.md](PLAN.md).

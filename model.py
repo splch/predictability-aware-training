@@ -32,9 +32,9 @@ class Config:
     dropout: float = 0.0
 
 
-TIER_B = Config()  # ~120M total / ~40M active
+TIER_B = Config()  # 94M total / 56M active
 TIER_A = Config(d_model=512, n_layers=12, n_heads=8, d_ff=1408,
-                n_experts=16, top_k=2)  # ~450M total / ~100M active
+                n_experts=16, top_k=2)  # 341M total / 99M active
 
 
 class Attention(nn.Module):

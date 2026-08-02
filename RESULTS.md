@@ -584,9 +584,10 @@ Findings:
    (+0.2/+0.6/+1.4 under the ranking probe, whose higher ceiling leaves less
    room). The "intervention too weak along the loss-weight axis" reading of
    Exp 10 is dead — more pressure buys a little, not nothing.
-2. **But the effect is 3-5x weaker than pretraining**: at matched probe, Tier
-   A pretraining buys +6-7 pts (linear) / +3-4 pts (ranking); a 25M-token
-   LoRA fine-tune at 10x pressure buys +1.3-2.6 / +0.2-1.4. The pretraining
+2. **But the effect is much weaker than pretraining**: at matched probe, Tier
+   A pretraining buys +6-7 pts (linear) / +3-5 pts (ranking); a 25M-token
+   LoRA fine-tune at 10x pressure buys +1.3-2.6 / +0.2-1.4 — 2.5-5x weaker
+   under the linear probe, more under the ranking probe. The pretraining
    regime remains qualitatively different.
 3. The co-adaptation gap shrank (co-trained minus posthoc: +3.2/+2.7/+2.4 at
    lam1.0 vs +4.3/+4.1/+4.2 at lam0.1) — pressure went into the backbone,

@@ -259,10 +259,11 @@ attention+experts plus trainable routers, λ=0.1, 25M tokens:
 tie under both probes. At 10x pressure (λ=1.0) a small backbone effect
 appears — +1.3/+1.8/+2.6 pts under the linear probe, +0.2/+0.6/+1.4 under
 the ranking probe, growing with horizon — at +0.011 nats and with router
-entropy flat (3.719 vs 3.748, so not sharpening). But this remains **3–5x
-weaker than the pretraining effect** at matched probe (+6–7 linear, +3–5
-ranking, Tier A): the boundary is dose-dependent, not a strict zero, and the
-pretraining regime is qualitatively different. We read this as **boundary
+entropy flat (3.719 vs 3.748, so not sharpening). But this remains
+**2.5–5x weaker than the pretraining effect under the linear probe** (and
+more under the ranking probe, whose ceiling leaves less room): the boundary
+is dose-dependent, not a strict zero, and the pretraining regime is
+qualitatively different. We read this as **boundary
 mapping, not failure**: representations must be shaped while plastic; the
 entire training-time prior-art family (StickyMoE, Oracle-MoE) shares the
 property. Scope of the negative: one seed, one LoRA rank, one token count
