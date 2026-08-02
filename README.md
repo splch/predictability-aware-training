@@ -72,6 +72,28 @@ python train.py --tier B --horizons 1,2,4 --mode posthoc --ckpt ckpt_base.pt \
 Developed on an AMD Ryzen AI Max+ 395 (Strix Halo, Radeon 8060S iGPU, gfx1151).
 For CPU-only: install the CPU torch wheel and use `--device cpu`.
 
+Every experiment in RESULTS.md has a run chain in `scripts/` (run under
+`sg render` on this box; `|| true` after each leg absorbs the known ROCm
+teardown abort that fires after checkpoint save):
+
+| scripts/ chain | experiments |
+|---|---|
+| run_h124.sh, run_h124_rest.sh, run_lambda.sh | 2, 3 (Tier B; Exp 1 predates scripts, logs only) |
+| run_tierA.sh, run_tierA2.sh | 4 (Tier A six arms + isolation test) |
+| run_sim.sh | 5, 8 (traces -> cache sim, TTFT, sensitivity grid) |
+| run_seeds.sh | 6 (3-seed replication) |
+| run_remediation.sh | 7 (ranking control s0, StickyMoE sweep, data-order seeds) |
+| run_undertrain.sh, run_undertrain2.sh | 9 (entropy ladder, 100M-token arms) |
+| run_tierC.sh | 10 (OLMoE LoRA A/B + isolation) |
+| run_engine.sh | 11 (export + O_DIRECT engine demo) |
+| run_downstream.sh | 12 (zero-shot downstream eval) |
+| run_tierC_lam1.sh | 13 (Tier C lambda=1.0 dose arm) |
+| run_rank_seeds.sh | 14 (3-seed ranking control) |
+
+Tracked small artifacts: `results_cache_sim.csv`, `downstream_ckpt_*.json`,
+`paper_figure.png`. Checkpoints and traces are gitignored (size); regenerate
+via the chains above (traces ~2 min via `dump_traces.py`).
+
 ## Repository layout
 
 ```
@@ -82,6 +104,7 @@ cache_sim.py        trace-driven cache/prefetch simulator (honest disk queue)
 dump_traces.py      routing-trace export for the simulator
 toy_engine.py       O_DIRECT disk-resident inference engine (end-to-end demo)
 export_engine_model.py  checkpoint -> engine format converter
+eval_downstream.py  zero-shot downstream eval (HellaSwag/ARC/PIQA)
 scripts/            run chains for every experiment in RESULTS.md
 results_cache_sim.csv   simulator output tables
 README.md / RESEARCH.md / PLAN.md / RESULTS.md / PAPER.md
