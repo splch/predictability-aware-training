@@ -1,0 +1,131 @@
+\begin{thebibliography}{23}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Alizadeh et~al.(2023)Alizadeh, Mirzadeh, Belenko, Khatamifard, Cho, Del~Mundo, Rastegari, and Farajtabar]{alizadeh2023llmflash}
+Keivan Alizadeh, Iman Mirzadeh, Dmitry Belenko, Karen Khatamifard, Minsik Cho, Carlo~C Del~Mundo, Mohammad Rastegari, and Mehrdad Farajtabar.
+\newblock {LLM} in a flash: Efficient large language model inference with limited memory.
+\newblock \emph{arXiv:2312.11514}, 2023.
+
+\bibitem[Bisk et~al.(2020)Bisk, Zellers, Le~Bras, Gao, and Choi]{bisk2020piqa}
+Yonatan Bisk, Rowan Zellers, Ronan Le~Bras, Jianfeng Gao, and Yejin Choi.
+\newblock {PIQA}: Reasoning about physical commonsense in natural language.
+\newblock In \emph{Proceedings of AAAI}, 2020.
+\newblock arXiv:1911.11641.
+
+\bibitem[Clark et~al.(2018)Clark, Cowhey, Etzioni, Khot, Sabharwal, Schoenick, and Tafjord]{clark2018arc}
+Peter Clark, Isaac Cowhey, Oren Etzioni, Tushar Khot, Ashish Sabharwal, Carissa Schoenick, and Oyvind Tafjord.
+\newblock Think you have solved question answering? try {ARC}, the {AI2} reasoning challenge.
+\newblock In \emph{arXiv:1803.05457}, 2018.
+
+\bibitem[Dai et~al.(2022)Dai, Dong, Ma, Zheng, Sui, Chang, and Wei]{dai2022stablemoe}
+Damai Dai, Li~Dong, Shuming Ma, Bo~Zheng, Zhifang Sui, Baobao Chang, and Furu Wei.
+\newblock Stablemoe: Stable routing strategy for mixture of experts.
+\newblock \emph{arXiv:2204.08396}, 2022.
+
+\bibitem[Fang et~al.(2025)Fang, Hong, Huang, Lyu, Chen, Yu, Yu, and Zheng]{fang2025fate}
+Zhiyuan Fang, Zicong Hong, Yuegui Huang, Yufeng Lyu, Wuhui Chen, Yue Yu, Fan Yu, and Zibin Zheng.
+\newblock Fate: Fast edge inference of mixture-of-experts models via cross-layer gate.
+\newblock \emph{arXiv:2502.12224}, 2025.
+
+\bibitem[Fedus et~al.(2021)Fedus, Zoph, and Shazeer]{fedus2021switch}
+William Fedus, Barret Zoph, and Noam Shazeer.
+\newblock Switch transformers: Scaling to trillion parameter models with simple and efficient sparsity.
+\newblock \emph{arXiv:2101.03961}, 2021.
+
+\bibitem[Gavhane et~al.(2025)Gavhane, Mehrotra, Chawla, and Proenca]{gavhane2025moebeyond}
+Nishant Gavhane, Arush Mehrotra, Rohit Chawla, and Peter Proenca.
+\newblock Moe-beyond: Learning-based expert activation prediction on edge devices.
+\newblock \emph{arXiv:2508.17137}, 2025.
+
+\bibitem[Hu et~al.(2026)Hu, Cao, Kong, Sun, and Yuan]{hu2026synergistic}
+Rizhen Hu, Yuan Cao, Boao Kong, Mou Sun, and Kun Yuan.
+\newblock Synergistic intra- and cross-layer regularization losses for {MoE} expert specialization.
+\newblock \emph{arXiv:2602.14159}, 2026.
+
+\bibitem[Hwang et~al.(2024)Hwang, Wei, Cao, Hwang, Tang, Cao, and Yang]{hwang2024pregated}
+Ranggi Hwang, Jianyu Wei, Shijie Cao, Changho Hwang, Xiaohu Tang, Ting Cao, and Mao Yang.
+\newblock Pre-gated {MoE}: An algorithm-system co-design for fast and scalable mixture-of-expert inference.
+\newblock In \emph{51st International Symposium on Computer Architecture (ISCA)}, 2024.
+\newblock arXiv:2308.12066.
+
+\bibitem[JustVugg(2026)]{colibri}
+JustVugg.
+\newblock Colibr\`i: Run frontier {MoE} models on hardware you own.
+\newblock \url{https://github.com/JustVugg/colibri}, 2026.
+\newblock Pure-C disk-resident MoE inference engine; PILOT router-lookahead thread.
+
+\bibitem[Kayyam(2026)]{kayyam2026stickymoe}
+Ali Kayyam.
+\newblock Sticky routing: Training {MoE} models for memory-efficient inference.
+\newblock \emph{arXiv:2607.08780}, 2026.
+\newblock Method referred to as StickyMoE.
+
+\bibitem[Lv et~al.(2025)Lv, Ma, Ma, and Qiao]{lv2025coupling}
+Ang Lv, Jin Ma, Yiyuan Ma, and Siyuan Qiao.
+\newblock Coupling experts and routers in mixture-of-experts via an auxiliary loss.
+\newblock \emph{arXiv:2512.23447}, 2025.
+
+\bibitem[Muennighoff et~al.(2024)Muennighoff, Soldaini, Groeneveld, Lo, Morrison, Min, Shi, Walsh, Tafjord, Lambert, Gu, Arora, Bhagia, et~al.]{muennighoff2024olmoe}
+Niklas Muennighoff, Luca Soldaini, Dirk Groeneveld, Kyle Lo, Jacob Morrison, Sewon Min, Weijia Shi, Pete Walsh, Oyvind Tafjord, Nathan Lambert, Yuling Gu, Shane Arora, Akshita Bhagia, et~al.
+\newblock {OLMoE}: Open mixture-of-experts language models.
+\newblock \emph{arXiv:2409.02060}, 2024.
+
+\bibitem[Nistor(2026)]{nistor2026halfway}
+Marian-Sergiu Nistor.
+\newblock Halfway speculative decoding: Direct acceptance rate optimization with joint drafter-target training.
+\newblock OpenReview, \url{https://openreview.net/forum?id=NLdAp0Oizb}, 2026.
+
+\bibitem[Penedo et~al.(2024)Penedo, Kydl{\'i}{\v{c}}ek, Ben~Allal, Lozhkov, Mitchell, Raffel, Von~Werra, and Wolf]{penedo2024fineweb}
+Guilherme Penedo, Hynek Kydl{\'i}{\v{c}}ek, Loubna Ben~Allal, Anton Lozhkov, Margaret Mitchell, Colin Raffel, Leandro Von~Werra, and Thomas Wolf.
+\newblock The {FineWeb} datasets: Decanting the web for the finest text data at scale.
+\newblock \emph{arXiv:2406.17557}, 2024.
+
+\bibitem[Radford et~al.(2019)Radford, Wu, Child, Luan, Amodei, and Sutskever]{radford2019gpt2}
+Alec Radford, Jeffrey Wu, Rewon Child, David Luan, Dario Amodei, and Ilya Sutskever.
+\newblock Language models are unsupervised multitask learners.
+\newblock OpenAI technical report, 2019.
+
+\bibitem[Xue et~al.(2024{\natexlab{a}})Xue, Fu, Lu, Mai, and Marina]{xue2024moeinfinity}
+Leyang Xue, Yao Fu, Zhan Lu, Luo Mai, and Mahesh Marina.
+\newblock Moe-infinity: Efficient {MoE} inference on personal machines with sparsity-aware expert cache.
+\newblock \emph{arXiv:2401.14361}, 2024{\natexlab{a}}.
+\newblock USENIX ATC 2025.
+
+\bibitem[Xue et~al.(2024{\natexlab{b}})Xue, Song, Mi, Zheng, Xia, and Chen]{xue2024powerinfer2}
+Zhenliang Xue, Yixin Song, Zeyu Mi, Xinrui Zheng, Yubin Xia, and Haibo Chen.
+\newblock Powerinfer-2: Fast large language model inference on a smartphone.
+\newblock \emph{arXiv:2406.06282}, 2024{\natexlab{b}}.
+
+\bibitem[Yu et~al.(2025)Yu, Dong, Zhang, Bai, Yang, Wang, Li, Wu, and Liao]{yu2025layerscope}
+Enda Yu, Dezun Dong, Zhaoning Zhang, Zhe Bai, Weiling Yang, Haojie Wang, Dongsheng Li, Yongwei Wu, and Xiangke Liao.
+\newblock Layerscope: Predictive cross-layer scheduling for efficient multi-batch {MoE} inference on legacy servers.
+\newblock \emph{arXiv:2509.23638}, 2025.
+\newblock ICS 2026; the prediction-driven scheduling system is named PreScope.
+
+\bibitem[Zellers et~al.(2019)Zellers, Holtzman, Bisk, Farhadi, and Choi]{zellers2019hellaswag}
+Rowan Zellers, Ari Holtzman, Yonatan Bisk, Ali Farhadi, and Yejin Choi.
+\newblock Hellaswag: Can a machine really finish your sentence?
+\newblock In \emph{Proceedings of ACL}, 2019.
+\newblock arXiv:1905.07830.
+
+\bibitem[Zhou et~al.(2025)Zhou, Dong, Huang, Cao, Chen, Yang, Chen, Dong, Wang, Li, Clifton, Lv, Zhu, Zhang, Yang, Lu, Gu, and Shang]{zhou2025oraclemoe}
+Jixian Zhou, Fang Dong, Ruijun Huang, Hengjie Cao, Mengyi Chen, Yifeng Yang, Anrui Chen, Mingzhi Dong, Yujiang Wang, Dongsheng Li, David~A. Clifton, Qin Lv, Rui Zhu, Chun Zhang, Fan Yang, Tun Lu, Ning Gu, and Li~Shang.
+\newblock Oracle-{MoE}: Locality-preserving routing in the oracle space for memory-constrained large language model inference.
+\newblock In \emph{Proceedings of the 42nd International Conference on Machine Learning (ICML)}, volume 267 of \emph{PMLR}, 2025.
+
+\bibitem[Zhu et~al.(2025)Zhu, Bohl, Oester, and Alonso]{zhu2025preattention}
+Shien Zhu, Samuel Bohl, Robin Oester, and Gustavo Alonso.
+\newblock Pre-attention expert prediction and prefetching for mixture-of-experts large language models.
+\newblock \emph{arXiv:2511.10676}, 2025.
+
+\bibitem[Zhu et~al.(2026)Zhu, Liao, Jiang, Zhang, Wang, and Xiao]{zhu2026remoe}
+Xiongwei Zhu, Xiaojian Liao, Tianyang Jiang, Yusen Zhang, Liang Wang, and Limin Xiao.
+\newblock Remoe: Boosting expert reuse through router fine-tuning in memory-constrained {MoE} {LLM} inference.
+\newblock \emph{arXiv:2605.27081}, 2026.
+\newblock ICML 2026.
+
+\end{thebibliography}

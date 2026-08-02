@@ -9,7 +9,9 @@
 \usepackage[colorlinks=true,linkcolor=black,citecolor=blue,urlcolor=blue]{hyperref}
 
 \title{Predictability is Trainable: Optimizing MoE LLMs to be Forecastable\\for Disk-Resident Inference}
-\author{Anonymous}
+\author{Spencer Churchill\\
+Independent\\
+\texttt{spence@duck.com}}
 \date{}
 
 \begin{document}
@@ -58,7 +60,8 @@ model. We invert the relationship --- \textbf{the accuracy of an independent
 expert-activation predictor becomes an explicit term in the MoE's own
 training loss} --- so the backbone is regularized toward being forecastable
 at multi-layer lookahead horizons while the predictor simultaneously adapts
-to the model.
+to the model.\footnote{Code, data pipeline, run scripts, and the full audit
+trail: \url{https://github.com/splch/predictability-aware-training}}
 
 Contributions, each matched to an exhibit:
 \begin{itemize}
@@ -206,8 +209,8 @@ included.
 \subsection{The isolation test (C1)}
 
 A fresh post-hoc predictor on the frozen joint backbone recovers the
-co-trained predictor's accuracy \emph{exactly} (0.890/0.866/0.796 vs
-0.887/0.863/0.793). The predictability is a property of the weights --- the
+co-trained predictor's accuracy \emph{exactly} (0.890\slash 0.866\slash
+0.796 vs 0.887\slash 0.863\slash 0.793). The predictability is a property of the weights --- the
 deployable artifact.
 
 \subsection{Structure, not sharpening (C2, Figure~\ref{fig:frontier})}
@@ -398,7 +401,8 @@ targeting disk-resident deployment, predictability pressure is a cheap
 ($\lambda \approx 0.3$), quality-neutral auxiliary objective; for engine
 authors, the result defines what a shipped model can make recoverable. Data,
 code, and the full audit trail (including three red-team rounds and all
-negative results) are available in the repository.
+negative results) are available in the repository:
+\url{https://github.com/splch/predictability-aware-training}.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
