@@ -1,0 +1,19 @@
+{
+  "hellaswag": {
+    "acc": 0.249,
+    "n": 1000
+  },
+  "arc_easy": {
+    "acc": 0.305,
+    "n": 1000
+  },
+  "arc_challenge": {
+    "acc": 0.21,
+    "n": 1000
+  },
+  "piqa": {
+    "acc": 0.561,
+    "n": 1000
+  },
+  "ckpt": "ckpt_U_lam0.3.pt"
+}

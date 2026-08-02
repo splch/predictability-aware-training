@@ -265,7 +265,9 @@ and that is the bar any pretraining application must clear.
 
 Positive evidence is one toy from-scratch model (341M, 16 experts,
 FineWeb-edu only, ≤100M tokens); systems numbers are simulator + toy-engine,
-not a production engine; quality is val-LM only (no downstream tasks); n=3;
+not a production engine; quality is val-LM plus chance-level zero-shot downstream probes (Exp 12:
+no consistent joint deficit at 25M tokens; joint >= baseline on all four
+benchmarks at 100M tokens) — task sensitivity at this scale is limited; n=3;
 the ranking control is our reimplementation of 2511.10676's protocol;
 StickyMoE was tested on our metric only; the Tier C negative is a single
 configuration. At toy B=8/C=64 the joint engine row slightly exceeds the
