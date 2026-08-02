@@ -106,6 +106,7 @@ toy_engine.py       O_DIRECT disk-resident inference engine (end-to-end demo)
 export_engine_model.py  checkpoint -> engine format converter
 eval_downstream.py  zero-shot downstream eval (HellaSwag/ARC/PIQA)
 scripts/            run chains for every experiment in RESULTS.md
+paper/              arXiv-ready LaTeX (main.tex + verified references.bib)
 results_cache_sim.csv   simulator output tables
 README.md / RESEARCH.md / PLAN.md / RESULTS.md / PAPER.md
 ```

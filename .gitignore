@@ -8,3 +8,4 @@ engine_*.bin
 .pi-subagents/
 artifacts/
 colab/
+paper/main.pdf

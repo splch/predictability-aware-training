@@ -32,10 +32,10 @@ before they're needed — hiding disk latency for disk-resident MoE inference.
 | **Fate** (arXiv 2502.12224) | 2025 | Cross-layer gate: adjacent layers' gate inputs predict each other; shallow-favoring caching; quantization for cache/IO | 99% hit rate; ~4x prefill/decode speedups over load-on-demand |
 | **Pre-attention expert prediction** (arXiv 2511.10676) | Nov 2025 | Key insight: some LLM functions are *ranking-preserving*, so 2 linear layers on pre-attention activations + **ranking-aware loss** suffice; also covers layer 1 | 93.0% (DeepSeek-V2-Lite), 94.7% (Qwen3-30B), 97.6% (Phi-mini-MoE); ~15 pts over prior SOTA |
 | **MoE-Beyond** (arXiv 2508.17137) | Aug 2025 | Lightweight transformer trained on 66M activation traces (DeepSeek-V2-Lite) as multi-label sequence prediction | 97.5% acc / 86.6 F1; cache hit 17%→72% at 10% cache budget |
-| **PreScope** (arXiv 2509.23638) | ICS 2026 | Learnable layer-aware predictor (LLaPor) + globally optimal prefetch scheduling + async I/O | +141% throughput, -74.6% latency vs SOTA |
+| **PreScope** (arXiv 2509.23638; paper title "LayerScope", system named PreScope) | ICS 2026 | Learnable layer-aware predictor (LLaPor) + globally optimal prefetch scheduling + async I/O | +141% throughput, -74.6% latency vs SOTA |
 | **LLM in a Flash** (arXiv 2312.11514) | Apple | Windowing (reuse active params across tokens) + row-column bundling for flash-resident sparse inference | Runs 2x RAM-size models on iPhone |
 | **PowerInfer-2** (arXiv 2406.06282) | SJTU | Neuron/expert activation prediction for smartphones (Mixtral 47B) | 11.7 tok/s on phone |
-| **MoE-Infinity** | ATC'25 | Activation-aware expert caching from traces on personal machines | Better hit rates than LRU at small budgets |
+| **MoE-Infinity** (arXiv 2401.14361) | ATC'25 | Activation-aware expert caching from traces on personal machines | Better hit rates than LRU at small budgets |
 
 ## Training-time prior art (added after novelty red-team, 2026-07-21)
 
@@ -45,10 +45,10 @@ exists and must be differentiated:
 
 | Work | What it does | How it differs from this project |
 |---|---|---|
-| **StickyMoE** (arXiv 2607.08780, Jul 2026) | Differentiable routing-consistency loss (l2 between consecutive tokens' gate distributions) in pretraining; -59% switch rate, 3.92x fewer cache misses, Pareto-dominates post-hoc router fine-tuning | Most dangerous prior art. Optimizes *temporal stickiness* (token t vs t-1), not *predictability from earlier layers*; no predictor, no lookahead horizon. Sticky routing can't help when topic genuinely changes. **Mandatory training-time baseline; test stacking with our loss.** |
-| **Oracle-MoE** (2025) | From-scratch training with locality-preserving routing in an attention-derived "oracle space" | Architectural redesign; locality emergent, no explicit predictability objective |
-| **ReMoE** (2026) | Router-only fine-tune with locality-aware gate regularizer for expert reuse in serving | Post-hoc, router-only (experts/backbone frozen); no predictor/lookahead. Cheap strong control. |
-| **Halfway Speculative Decoding** (2026) | Joint drafter+target training optimizing acceptance rate directly | Same co-design *pattern* (train big model to be predictable by small one) in token space, not expert space. Cite proactively. |
+| **StickyMoE** (arXiv 2607.08780, Jul 2026; "Sticky Routing", Kayyam) | Differentiable routing-consistency loss (l2 between consecutive tokens' gate distributions) in pretraining; -59% switch rate, 3.92x fewer cache misses, Pareto-dominates post-hoc router fine-tuning | Most dangerous prior art. Optimizes *temporal stickiness* (token t vs t-1), not *predictability from earlier layers*; no predictor, no lookahead horizon. Sticky routing can't help when topic genuinely changes. **Mandatory training-time baseline; test stacking with our loss.** |
+| **Oracle-MoE** (ICML 2025, PMLR v267 zhou25b) | From-scratch training with locality-preserving routing in an attention-derived "oracle space" | Architectural redesign; locality emergent, no explicit predictability objective |
+| **ReMoE** (arXiv 2605.27081, ICML 2026) | Router-only fine-tune with locality-aware gate regularizer for expert reuse in serving | Post-hoc, router-only (experts/backbone frozen); no predictor/lookahead. Cheap strong control. |
+| **Halfway Speculative Decoding** (OpenReview NLdAp0Oizb, 2026, Nistor) | Joint drafter+target training optimizing acceptance rate directly | Same co-design *pattern* (train big model to be predictable by small one) in token space, not expert space. Cite proactively. |
 | Routing regularization (StableMoE 2204.08396, ERC 2512.23447, cross-layer reg 2602.14159) | Router losses for quality/stability/specialization | Never target inference-time predictability |
 
 No industry precedent found (DeepSeek-V3, Qwen3, Mistral tech reports) for
