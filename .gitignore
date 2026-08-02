@@ -8,3 +8,7 @@ engine_*.bin
 .pi-subagents/
 artifacts/
 colab/
+paper/*.aux
+paper/*.out
+paper/*.blg
+paper/arxiv_submission.tar.gz

@@ -1,0 +1,244 @@
+% ======================================================================
+% CONSENSUS SKELETON: one-column workshop/arXiv ML-systems paper
+% Synthesized from three independent cluster analyses (10 papers):
+%   [A] ML-methods cluster: 2511.10676 (MLSys), 2605.27081 (ICML),
+%       2607.08780 StickyMoE (plain article, one column)
+%   [B] systems cluster: Fate (acmart sigplan), LayerScope (acmart),
+%       Pre-gated MoE (IEEEtran/ISCA)
+%   [C] landmark cluster: OLMoE (NeurIPS), MoE-Infinity (ICML),
+%       Switch Transformers (JMLR), MoE-Beyond (plain article)
+%
+% Target style (mandated): plain article, ONE column, 10pt, letterpaper,
+% natbib NUMBERED citations, booktabs tables. Compiles with pdflatex on
+% standard TeX Live; no venue .sty required.
+% ======================================================================
+
+% [all 3 clusters] every paper roots at \documentclass{article}.
+% One column per target style (matches StickyMoE/OLMoE/Switch). For a
+% two-column venue add [twocolumn] or swap in the venue style.
+\documentclass[10pt,letterpaper]{article}
+
+% ---- Geometry ---------------------------------------------------------
+% [B] systems template uses geometry to approximate a conference block;
+% StickyMoE [A] uses margin=1in. letterpaper matches the target.
+\usepackage[letterpaper,margin=1in]{geometry}
+
+% ---- Core preamble [MANDATORY: agreed by all 3 clusters] --------------
+% Order follows cluster A consensus: microtype, graphicx, subcaption,
+% booktabs, amsmath ... hyperref last.
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}          % all 3 clusters
+\usepackage{graphicx}           % all 3 clusters
+\usepackage{subcaption}         % all 3 clusters (A,C) / subfig in B-P3
+\usepackage{booktabs}           % MANDATORY: booktabs-only tables, no \hline
+\usepackage{amsmath}            % all 3 clusters
+\usepackage{amssymb}            % A-P2/P3, B-P3, C-OLMoE
+\usepackage{mathtools}          % A-P2/P3, C-OLMoE
+\usepackage{amsthm}             % A-P2/P3 (theorem suite)
+\usepackage{xcolor}
+\usepackage{xspace}             % B-P3, C (system-name macros)
+\usepackage{enumitem}           % B-P2, C (compact contribution lists)
+\usepackage[hyphens]{url}       % B-P3, A-P2 (URL breaking)
+
+% ---- hyperref: colorlinks with muted colors [MANDATORY] ----------------
+% A: StickyMoE explicit colored setup. C: OLMoE single dark blue /
+%    Switch all black. B: acmart screen colors / hyperref default.
+% Consensus: colorlinks=true, muted (no default red boxes).
+\definecolor{linkcolor}{RGB}{0,0,128} % C-OLMoE dark blue
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = blue!70!black,   % A-StickyMoE
+  citecolor  = green!50!black,  % A-StickyMoE (alt: single linkcolor, C-OLMoE)
+  urlcolor   = linkcolor,
+}
+
+% ---- natbib NUMBERED [target style] ------------------------------------
+% All 3 clusters agree on BibTeX (never biblatex) with semantic keys.
+% C-OLMoE passes numbers,compress to natbib; numbered per target style.
+% Alternatives: A-P1/P2 venue-provided natbib; B numeric via cite/acmart;
+% C-Switch author-year natbib (JMLR). Use \citep/\citet (A-P3, C).
+\usepackage[numbers,sort&compress]{natbib}
+
+% ---- cleveref (optional; A-P2/P3, C-OLMoE/MoE-Infinity) ----------------
+\usepackage[capitalize,noabbrev]{cleveref}
+
+% ---- Theorem environments [A-P2 full suite, A-P3 subset] ---------------
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+% ---- Notation macros ----------------------------------------------------
+% [A-P3, C] \textsc system-name macro with \xspace. Bold-vector math is
+% A-P3-only; plain italic is the A/C majority -- keep macros minimal.
+\newcommand{\method}{\textsc{<<METHODNAME>>}\xspace}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\calL}{\mathcal{L}}
+% hyperref+algorithm coexistence fix (A-P1/P2, C-MoE-Infinity):
+\newcommand{\theHalgorithm}{\arabic{algorithm}}
+
+% ======================================================================
+\begin{document}
+
+% ---- Title block: plain \maketitle (A-P3, B-fallback, C-plain) ---------
+\title{\method: <<TITLE>>}
+\author{<<AUTHOR>> \\ <<AFFILIATION>> \\ \texttt{<<EMAIL>>}}
+\date{} % suppress date (B-P1, all templates)
+\maketitle
+
+% ---- Abstract [MANDATORY rhetoric, all 3 clusters] ---------------------
+% ONE paragraph: context/problem -> prior-work gap -> "We propose X ..."
+% + mechanism -> BOLDED headline numbers -> artifact URL.
+\begin{abstract}
+<<CONTEXT: MoE models ...; PROBLEM/GAP: existing approaches ....>>
+We propose \method, <<ONE-LINE DESCRIPTION>>. <<KEY INSIGHT + 2-3
+techniques in order>>. On <<MODELS/HARDWARE>>, \method achieves
+\textbf{<<XX\% / X.X$\times$>>} improvement over <<SOTA BASELINE>>.
+\noindent\textbf{Code}: \url{https://github.com/<<REPO>>}
+\end{abstract}
+
+% ----------------------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+% [all 3 clusters] context -> problem -> categorize prior remedies ->
+% "we propose" paragraph naming components "First ... Second ... Third ..."
+% (A-P1, B) or "(i) ... (ii) ..." (A-P2) -> results-summary paragraph.
+<<INTRO PARAGRAPHS>>
+
+% Motivational page-1 figure/table is common (B-P2, C-OLMoE/MoE-Infinity).
+\begin{figure}[t] % [t]-family placement MANDATORY (all 3 clusters)
+  \centering % \centering in floats MANDATORY
+  \includegraphics[width=\linewidth]{figures/<<MOTIVATION_FIG>>}
+  \caption{<<Caption BELOW figure (MANDATORY). Optional bold lead-in
+    sentence (A-P2, C-OLMoE).>>}
+  \label{fig:motivation} % fig: prefix MANDATORY; \label right after \caption
+\end{figure}
+
+% Intro ENDS with an explicit itemized contributions list [MANDATORY].
+% Evidence: A-P3 (enumerate), all of B (itemize of bold-tagged bullets),
+% C 3/4 (Switch itemize; MoE-Infinity/MoE-Beyond bold run-in paragraphs).
+% Alternative: bold run-in "\mypar{Contribution N}" style (C).
+\paragraph{Contributions.}
+We make the following contributions:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{<<Technique.>>} <<Core mechanism (\cref{sec:method}).>>
+  \item \textbf{<<System.>>} <<Implementation in \method (\cref{sec:experiments}).>>
+  \item \textbf{<<Evaluation.>>} <<Headline numbers vs.\ named baselines
+        (\cref{sec:experiments}).>>
+\end{itemize}
+
+% ----------------------------------------------------------------------
+\section{Background}
+\label{sec:background}
+% [all 3 clusters] preliminaries before method; numbered equations.
+% B-P2 merges Related Work here ("Background and Related Work");
+% B-P3 folds Motivation into Background.
+\subsection{<<MoE PRIMER / PRELIMINARIES AND NOTATION>>}
+\begin{equation}
+  y = \sum_{i=1}^{N} G(x)_i \, E_i(x)
+  \label{eq:moe} % eq: prefix MANDATORY (A-P2/P3, C-OLMoE/Switch)
+\end{equation}
+
+% ----------------------------------------------------------------------
+\section{Related Work}
+\label{sec:related}
+% POSITION: early here, per target skeleton. DISAGREEMENT NOTE: B-P1/P3
+% and C-OLMoE/Switch place Related Work LATE (after Evaluation); B-P2 and
+% C-MoE-Infinity merge it early. Move this section after Evaluation if
+% following the late convention.
+% ORGANIZATION [all 3 clusters]: thematic categories, each a subsection
+% (A-P3) or bold run-in paragraph (A-P2, B-P1); end by contrasting \method.
+\subsection{<<Category A, e.g., System-Level Approaches>>}
+\subsection{<<Category B, e.g., Post-Hoc Adaptation>>}
+\subsection{<<Category C, e.g., Training-Time Methods>>}
+
+% ----------------------------------------------------------------------
+\section{\method: <<ONE-LINE METHOD DESCRIPTION>>}
+\label{sec:method}
+% [all 3 clusters] Overview first (with architecture figure), then one
+% subsection per named component; one NUMBERED equation per loss term,
+% each labeled eq:... and referenced from text.
+\subsection{Overview}
+\label{sec:method_overview}
+<<OVERVIEW: name the 2-3 components as (i) ... (ii) ... (iii) ...>>
+\subsection{<<Training Objective / Core Mechanism>>}
+\begin{equation}
+  \label{eq:objective}
+  \calL = <<LOSS TERMS>> % one equation per loss term (A-P2/P3 mandatory)
+\end{equation}
+% Multi-row formulations: use align with \label on each row (A-P1).
+
+% ----------------------------------------------------------------------
+\section{Experiments}
+\label{sec:experiments}
+% [all 3 clusters] order: SETUP first -> main results -> analysis ->
+% ABLATIONS LAST. Baselines are NAMED prior systems; quote x/% gains.
+\subsection{Experimental Setup}
+\label{sec:setup}
+<<SETUP: models, datasets, hardware, workloads, hyperparameters.>>
+Baselines: <<BASELINE 1>>~\citep{<<semantic-key-1>>},
+<<BASELINE 2>>~\citep{<<semantic-key-2>>}.
+\subsection{<<Main Results>>}
+\begin{table}[t] % [t]-family placement MANDATORY
+  \centering
+  % Caption ABOVE table: MANDATORY (A-P2/P3, all of B, C-OLMoE; target
+  % style). Alternatives: below table (A-P1, C-MoE-Infinity/Switch).
+  \caption{\textbf{<<Bold lead-in sentence.>>} <<Self-contained details:
+    comparison, protocol, takeaway (A-P2, C-OLMoE/Switch).>>}
+  \label{tab:main} % tab: prefix MANDATORY
+  \begin{tabular}{lcc}
+    \toprule    % booktabs ONLY: \toprule/\midrule/\bottomrule, no \hline,
+    <<Method>> & <<Metric 1>> ($\uparrow$) & <<Metric 2>> ($\downarrow$) \\ % no vertical rules
+    \midrule    % (arrows on metrics: C-Switch)
+    <<Baseline>> & -- & -- \\
+    \midrule    % \midrule group separators for cohorts (C-OLMoE)
+    \method & \textbf{<<best>>} & \textbf{<<best>>} \\ % bold best cells (all of C)
+    \bottomrule
+  \end{tabular}
+  % Wide tables: \footnotesize wrapper (C-OLMoE) or
+  % \resizebox{\linewidth}{!}{...} (B-P2, C-MoE-Infinity).
+\end{table}
+\subsection{<<Systems Evaluation / Performance Analysis>>}
+% [B, A-P1] end-to-end performance, then accuracy/quality, then
+% sensitivity / component drill-downs.
+\subsection{Ablation Studies}
+\label{sec:ablation} % ablations LAST within Experiments (all 3 clusters)
+
+% ----------------------------------------------------------------------
+\section{Discussion and Limitations}
+\label{sec:discussion}
+% Boundary/Limitations section [target skeleton; A-P1/P3, B-P3 discussion,
+% C-MoE-Beyond explicit Limitations section, C-OLMoE appendix topic].
+\paragraph{Limitations.}
+<<LIMITATIONS: when \method does NOT help; scope boundary.>>
+
+% ----------------------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+<<Restate problem, method, key insight, headline numbers, future work.>>
+
+% ---- Acknowledgments: unnumbered, before bibliography [all of B, C] ----
+\section*{Acknowledgments}
+<<FUNDING>>
+
+% ---- Bibliography BEFORE appendix [MANDATORY, all 3 clusters] ----------
+% Target style: plainnat + references.bib. COMMENTED OUT: no .bib ships
+% with this template; uncomment in the real paper.
+% Alternatives: venue bst (mlsys2025/icml2026/ACM-Reference-Format/
+% IEEEtranS/acl_natbib) or B-P1 \bibliographystyle{plain}.
+% \bibliographystyle{plainnat}
+% \bibliography{references}
+
+% ---- Appendix AFTER the bibliography [MANDATORY: A-P2/P3, B-P3, C 3/4] -
+\appendix
+\section{<<Appendix: Reproducibility / Proofs / Additional Results>>}
+\label{app:repro} % app: prefix (A-P2/P3, C-Switch)
+<<Reference from main text via \cref{app:repro}.>>
+
+\end{document}

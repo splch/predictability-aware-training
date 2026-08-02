@@ -1,408 +1,237 @@
-\documentclass[10pt]{article}
+\documentclass[10pt,letterpaper]{article}
+
 \usepackage[letterpaper,margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
 \usepackage{times}
 \usepackage{microtype}
 \usepackage{graphicx}
+\usepackage{subcaption}
 \usepackage{booktabs}
 \usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage[hyphens]{url}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = black,
+  citecolor  = blue,
+  urlcolor   = blue,
+}
+\usepackage[capitalize,noabbrev]{cleveref}
 \usepackage[numbers,sort&compress]{natbib}
-\usepackage[colorlinks=true,linkcolor=black,citecolor=blue,urlcolor=blue]{hyperref}
 
-\title{Predictability is Trainable: Optimizing MoE LLMs to be Forecastable\\for Disk-Resident Inference}
-\author{Spencer Churchill\\
-Independent\\
-\texttt{spence@duck.com}}
+\newcommand{\calL}{\mathcal{L}}
+
+\title{Predictability is Trainable: Optimizing MoE LLMs to be\\Forecastable for Disk-Resident Inference}
+\author{Spencer Churchill \\ Independent \\ \texttt{spence@duck.com}}
 \date{}
 
 \begin{document}
 \maketitle
 
 \begin{abstract}
-Inference engines such as Colibr\`i run 744B-parameter Mixture-of-Experts
-(MoE) models on consumer hardware by keeping the dense backbone resident and
-streaming expert weights from disk on demand --- a reactive design whose
-throughput is bounded by fetch latency. Post-hoc predictors can forecast
-expert activations from earlier hidden states, but they chase a model never
-asked to be predictable. We ask whether predictability is \emph{trainable}:
-we fold the accuracy of a small expert-activation predictor into the MoE's
-own training loss, so the model is optimized jointly for quality and for
-being forecastable. At 341M-parameter scale we show that (i) predictability
-is a trainable, transferable \textbf{backbone property} --- a fresh post-hoc
-predictor on the frozen jointly-trained backbone recovers the full gain
-(+6--7 pts top-$k$ hit rate over a linear control, +2.9--5.2 pts over a
-ranking-aware control; both 3 seeds); (ii) the gain is \textbf{structural,
-not sharpening} --- entropy penalties at any strength cannot reach it at
-matched entropy; (iii) it \textbf{grows with training} while its quality
-cost vanishes; and (iv) it converts to systems value (+3.2\% tok/s, $-$31\%
-misprefetch waste in a disk-queue-accurate simulator; +5.0\% mean tok/s in a
-purpose-built real engine). Finally we map the boundary: a LoRA fine-tune on
-pretrained OLMoE-1B-7B transfers only a small fraction of the effect even at
-10$\times$ loss pressure, indicating the method is
-\textbf{pretraining-time only}.
+Inference engines such as Colibri run 744B-parameter MoE models on consumer hardware by keeping the dense backbone resident and streaming expert weights from disk on demand---a reactive design whose throughput is bounded by fetch latency. Post-hoc predictors forecast expert activations from earlier hidden states, but they chase a model that was never asked to be predictable. We ask whether predictability is trainable: we fold the accuracy of a small expert-activation predictor into the MoE's own training loss, so the model is optimized jointly for output quality and for being forecastable. At 341M-parameter scale we find: (i) predictability is a trainable, transferable backbone property---a fresh post-hoc predictor trained on the frozen jointly-trained backbone recovers the full gain (+6--7 points top-$k$ hit rate over a linear control, +2.9--5.2 points over a ranking-aware control; both 3 seeds); (ii) the gain is structural, not sharpening---entropy penalties at any strength cannot reach it at matched entropy; (iii) it grows with training while its quality cost vanishes; and (iv) it converts to systems value (+3.2\% tok/s and $-$31\% misprefetch waste in a disk-queue-accurate simulator; +5.0\% mean tok/s in a purpose-built real engine). Finally, we map the boundary: a LoRA fine-tune on pretrained OLMoE-1B-7B transfers only a small fraction of the effect even at 10$\times$ loss pressure---the method is pretraining-time only.
+\noindent\textbf{Code}: \url{https://github.com/splch/predictability-aware-training}
 \end{abstract}
 
 \section{Introduction}
+\label{sec:intro}
 
-Sparse MoE LLMs activate only a small fraction of parameters per token, which
-makes their \emph{weights} --- not their compute --- the binding resource on
-consumer hardware. Engines like Colibr\`i \cite{colibri} exploit this: the
-dense backbone stays resident while tens of thousands of routed experts are
-streamed from disk, cached, and pinned by learned hot-stores. Every such
-engine is reactive: the router fires, and only then does the fetch begin.
-Colibr\`i's own mitigation is a router-lookahead thread (PILOT) that
-prefetches next-layer experts, exploiting that routing is ${\sim}72\%$
-predictable one layer ahead on a production model.
+Disk-resident inference engines have made mixture-of-experts (MoE) models runnable far outside the datacenter. Engines such as Colibri~\citep{colibri} run 744B-parameter MoE models on consumer hardware: the dense backbone stays resident while tens of thousands of routed experts are streamed from disk on demand. The design is fundamentally reactive---an expert fetch begins only after the router reveals that it is needed---so decode throughput is bounded by fetch latency rather than compute. Colibri's own mitigation is a router-lookahead thread (PILOT) that prefetches next-layer experts, exploiting the fact that routing is roughly 72\% predictable one layer ahead on a production model.
 
-A literature of post-hoc predictors (\S\ref{sec:related}) shows expert
-activations can be forecast from earlier hidden states with 93--97\%
-accuracy. But all of it treats the model as fixed: the predictor chases the
-model. We invert the relationship --- \textbf{the accuracy of an independent
-expert-activation predictor becomes an explicit term in the MoE's own
-training loss} --- so the backbone is regularized toward being forecastable
-at multi-layer lookahead horizons while the predictor simultaneously adapts
-to the model.\footnote{Code, data pipeline, run scripts, and the full audit
-trail: \url{https://github.com/splch/predictability-aware-training}}
+A growing line of post-hoc work pushes this further, training predictors that forecast expert activations from earlier hidden states at 93--97\% accuracy. But every such system treats the model as fixed: the predictor chases the model. We invert the relationship. The accuracy of an \emph{independent} expert-activation predictor becomes an explicit term in the MoE's own training loss, regularizing the backbone toward being forecastable at multi-layer lookahead horizons while the predictor simultaneously adapts to the model.\footnote{Code, data pipeline, run scripts, and the full audit trail: \url{https://github.com/splch/predictability-aware-training}}
 
-Contributions, each matched to an exhibit:
-\begin{itemize}
-\item \textbf{C1 --- Predictability is a trainable, transferable backbone
-property.} Fresh post-hoc predictors trained on the frozen jointly-trained
-backbone recover the entire gain; an engine needs no co-training to exploit
-it (Table~\ref{tab:main}).
-\item \textbf{C2 --- The gain is structural, not sharpening.} Entropy-penalty
-controls at any strength cannot reach the jointly-trained predictability at
-matched entropy; ${\sim}$+2--2.4 pts of the advantage is pure structure
-(Figure~\ref{fig:frontier}).
-\item \textbf{C3 --- The effect is robust and grows with training.} It
-survives init + data-order variance ($\pm$0.3 pts) and \emph{increases} at
-4$\times$ tokens, where the quality cost flips to a small gain
-(Table~\ref{tab:robust}).
-\item \textbf{C4 --- The accuracy converts to systems value, with a mapped
-boundary.} +3.2\% tok/s and $-$31\% misprefetch waste over the post-hoc
-control at Colibr\`i-like geometry (+1.6\%/$-$27\% at ranking-control
-accuracies), gated by fetch\_time $\le$ compute\_window; +5.0\% mean tok/s
-in a real O\_DIRECT engine; and a LoRA fine-tune on a pretrained model
-recovers only a fraction of the effect even at 10$\times$ loss pressure ---
-the method is pretraining-time only (Table~\ref{tab:tierc}).
+Concretely, we train a 341M-parameter GPT-style MoE (16 experts, top-2) with a joint loss $\calL = \calL_{\mathrm{LM}} + 0.01\,\calL_{\mathrm{balance}} + \lambda\,\calL_{\mathrm{pred}}$, where $\calL_{\mathrm{pred}}$ is a soft cross-entropy between predictor logits and the realized top-$k$ routing set. Gradients from $\calL_{\mathrm{pred}}$ reach the backbone only through hidden representations, so the loss shapes representations rather than router weights directly. We then ask four questions: is the resulting predictability a property of the backbone itself (\cref{sec:isolation}); is it merely router sharpening (\cref{sec:frontier}); does it survive and grow with training (\cref{sec:robust}); and does it convert to systems value (\cref{sec:systems})? The answers are yes, no, yes, and yes---with a precisely mapped boundary: the effect must be baked in during pretraining (\cref{sec:boundary}).
+
+\paragraph{Contributions.}
+We make the following contributions:
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Predictability is a trainable, transferable backbone property.} Fresh post-hoc predictors trained on the frozen jointly-trained backbone recover the entire gain, so a deployed engine needs no co-training (\cref{tab:main}).
+  \item \textbf{The gain is structural, not sharpening.} Entropy-penalty controls at any strength cannot reach the joint model's accuracy at matched entropy; roughly +2--2.4 points of the advantage is pure structure (\cref{fig:frontier}).
+  \item \textbf{The effect is robust and grows with training.} It survives init and data-order variance ($\pm$0.3 pts) and \emph{increases} at 4$\times$ tokens, where the quality cost flips to a small gain (\cref{tab:robust}).
+  \item \textbf{Predictability converts to systems value, with a mapped boundary.} +3.2\% tok/s and $-$31\% misprefetch waste over the post-hoc control at Colibri-like geometry (+1.6\%/$-$27\% at ranking-control accuracies), gated by fetch time $\le$ compute window; +5.0\% mean tok/s in a real O\_DIRECT engine. A LoRA fine-tune on a pretrained model recovers only a fraction even at 10$\times$ loss pressure---the method is pretraining-time only (\cref{tab:tierc}).
 \end{itemize}
 
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{Post-hoc expert prediction (frozen model).} Pre-attention linear
-predictors with ranking-aware losses reach 93--97.6\% top-$k$ accuracy
-\cite{zhu2025preattention}; cross-layer gate inputs enable edge offloading
-with 99\% cache hits (Fate \cite{fang2025fate}); trace-trained sequence
-predictors raise cache hit rates from 17\% to 72\% at 10\% budget
-(MoE-Beyond \cite{gavhane2025moebeyond}); PreScope \cite{yu2025layerscope}
-adds globally scheduled prefetching. Apple's LLM-in-a-Flash
-\cite{alizadeh2023llmflash}, PowerInfer-2 \cite{xue2024powerinfer2}, and
-MoE-Infinity \cite{xue2024moeinfinity} address adjacent offloading/caching
-problems. All of these train predictors \emph{against} a fixed model; none
-change the model.
+\paragraph{Post-hoc expert prediction.} A large body of work forecasts expert activations on a frozen model. Pre-attention linear predictors with ranking-aware losses reach 93--97.6\% top-$k$ accuracy~\citep{zhu2025preattention}; cross-layer gate inputs enable edge offloading with 99\% cache hits (Fate~\citep{fang2025fate}); trace-trained sequence predictors raise cache hit rates from 17\% to 72\% at a 10\% budget (MoE-Beyond~\citep{gavhane2025moebeyond}); PreScope~\citep{yu2025layerscope} adds globally scheduled prefetching. Adjacent offloading and caching systems include Apple's LLM-in-a-Flash~\citep{alizadeh2023llmflash}, PowerInfer-2~\citep{xue2024powerinfer2}, and MoE-Infinity~\citep{xue2024moeinfinity}. All of these train predictors \emph{against} a fixed model; none change the model.
 
-\paragraph{Training-time routing modification.} StickyMoE
-\cite{kayyam2026stickymoe} adds a differentiable routing-consistency loss
-for temporal reuse --- the closest philosophy to ours, but it optimizes
-\emph{stickiness} (token $t$ vs $t{-}1$), not \emph{forecastability from
-earlier layers}; we show in \S\ref{sec:sticky} that it does not buy lookahead
-predictability in our reimplementation. Oracle-MoE \cite{zhou2025oraclemoe}
-redesigns the routing input for emergent locality (no explicit objective).
-ReMoE \cite{zhu2026remoe} fine-tunes only the router post-hoc. Pre-gated MoE
-\cite{hwang2024pregated} is the closest co-design: a pre-gate module that
-\emph{replaces} next-layer routing, co-trained end-to-end with the backbone
---- but with no predictor-accuracy objective and no realized-router to
-evaluate forecasts against. Halfway Speculative Decoding
-\cite{nistor2026halfway} applies the same co-design pattern (train the
-target to be draftable) in token space. Routing regularization for quality
-or stability \cite{dai2022stablemoe,lv2025coupling,hu2026synergistic} never
-targets inference-time predictability. No prior work, to our knowledge, adds
-the accuracy of an \emph{independent} expert-activation predictor as an
-explicit term in the MoE's own loss at multi-layer lookahead; our stronger
-claim is empirical: that predictability is a transferable backbone property
-(C1) with a structural signature distinguishable from entropy reduction (C2).
+\paragraph{Training-time routing modification.} StickyMoE~\citep{kayyam2026stickymoe} adds a differentiable routing-consistency loss for temporal reuse---the closest philosophy to ours, but it optimizes stickiness (token $t$ vs.\ $t{-}1$), not forecastability from earlier layers; in our reimplementation it does not buy lookahead predictability (\cref{sec:sticky}). Oracle-MoE~\citep{zhou2025oraclemoe} redesigns the routing input for emergent locality without an explicit objective. ReMoE~\citep{zhu2026remoe} fine-tunes only the router post-hoc. Pre-gated MoE~\citep{hwang2024pregated} is the closest co-design: a pre-gate module that \emph{replaces} next-layer routing, co-trained end-to-end---but it has no predictor-accuracy objective and no realized router to evaluate forecasts against. Halfway Speculative Decoding~\citep{nistor2026halfway} applies the same co-design pattern---train the target to be draftable---in token space. Routing regularization for quality or stability~\citep{dai2022stablemoe,lv2025coupling,hu2026synergistic} never targets inference-time predictability.
 
-\paragraph{Our novelty statement, precisely scoped.} Prior systems work
-trains predictors post-hoc against frozen models; prior training-time work
-optimizes routing temporal locality; Pre-gated MoE co-trains a lookahead
-gate that \emph{replaces} routing. We are aware of no work that (a) makes an
-independent predictor's accuracy an explicit training objective of the MoE
-itself, and (b) demonstrates the resulting predictability is a recoverable
-property of the backbone's representations. Where this paper's ranking-aware
-control reimplements \cite{zhu2025preattention}'s protocol, we say so; all
-comparisons use our implementation, not their published numbers.
+\paragraph{Novelty.} Prior systems work trains predictors post-hoc against frozen models; prior training-time work optimizes routing temporal locality; Pre-gated MoE co-trains a lookahead gate that replaces routing. To our knowledge, no prior work (a) makes an independent predictor's accuracy an explicit training objective of the MoE itself, and (b) demonstrates that the resulting predictability is a recoverable property of the backbone's representations. Where our ranking-aware control reimplements the protocol of \citet{zhu2025preattention} we say so; all comparisons use our implementation, not their published numbers.
 
 \section{Method}
 \label{sec:method}
 
-\paragraph{Model.} GPT-style decoder ($d{=}512$, 12 layers, 16 experts,
-top-2, 341M total / 99M active parameters), trained on FineWeb-edu
-\cite{penedo2024fineweb} (GPT-2 BPE \cite{radford2019gpt2},
-document-shuffled stream with EOS, ctx 512, bf16 autocast).
+\subsection{Model and training}
+\label{sec:model}
 
-\paragraph{Predictor.} Per-(layer, horizon) heads from the pre-MoE hidden
-state at layer $l$ to the router decision at layer $l{+}h$,
-$h \in \{1, 2, 4\}$. Two families: \emph{linear} (single projection) and
-\emph{ranking-MLP} (2-layer MLP with a margin loss: the weakest true top-$k$
-logit must exceed the strongest intruder by a margin), the latter
-reimplementing the protocol of \cite{zhu2025preattention}.
+We train a GPT-style decoder-only MoE: $d{=}512$, 12 layers, 16 experts per layer with top-2 routing, 341M total / 99M active parameters. Training uses FineWeb-edu~\citep{penedo2024fineweb} tokenized with the GPT-2 BPE~\citep{radford2019gpt2} as a document-shuffled stream with EOS separators, context length 512, bf16 autocast, for 25M tokens (100M in the scaling run).
 
-\paragraph{Joint loss.} $L = L_{\mathrm{LM}} + 0.01 \cdot L_{\mathrm{balance}}
-+ \lambda \cdot L_{\mathrm{pred}}$ (+ optional entropy or sticky terms for
-controls). $L_{\mathrm{pred}}$ is a soft cross-entropy of predictor logits
-against the realized top-$k$ set (uniform $1/k$ mass). Gradients from
-$L_{\mathrm{pred}}$ reach the backbone only through hidden representations
-(realized top-$k$ targets are argmax, non-differentiable) --- the loss shapes
-representations, not router weights directly. The load-balancing term follows
-Switch Transformer \cite{fedus2021switch}.
+\subsection{Expert-activation predictors}
+\label{sec:predictor}
 
-\paragraph{Isolation protocol (a first-class methodological contribution).}
-To test whether predictability lives in the \emph{backbone} rather than in
-predictor co-adaptation, we freeze a trained backbone and train a
-\emph{fresh} predictor on it (2000--3000 steps), comparing against the same
-fresh-predictor protocol on the baseline backbone. This mirrors deployment:
-an inference engine trains its own predictor against a shipped model.
+Predictors are per-(layer, horizon) heads mapping the pre-MoE hidden state at layer $l$ to the router decision at layer $l{+}h$, for $h \in \{1,2,4\}$. We study two families: a \emph{linear} predictor (a single projection) and a \emph{ranking-MLP} (a 2-layer MLP trained with a margin loss requiring the weakest true top-$k$ logit to exceed the strongest intruder by a margin), the latter reimplementing the protocol of \citet{zhu2025preattention}.
 
-\paragraph{Metrics.} hit@$k$ per horizon (top-$k$ set overlap
-$|\mathrm{pred} \cap \mathrm{true}| / k$); router entropy; adjacent-layer
-routing persistence; utilization max; val LM loss on a fixed 16-batch
-held-out set drawn once before training and shared by every run; zero-shot
-downstream accuracy (HellaSwag \cite{zellers2019hellaswag}, ARC
-\cite{clark2018arc}, PIQA \cite{bisk2020piqa}) scored by length-normalized
-continuation logprob. Unless stated, numbers are $n{=}3$ seeds (init + data
-order) with between-seed std.
+\subsection{Joint training objective}
+\label{sec:objective}
+
+The training loss combines three terms:
+\begin{equation}
+  \calL = \calL_{\mathrm{LM}} + 0.01\,\calL_{\mathrm{balance}} + \lambda\,\calL_{\mathrm{pred}}
+  \label{eq:joint}
+\end{equation}
+where $\calL_{\mathrm{LM}}$ is the language-modeling loss, $\calL_{\mathrm{balance}}$ is the load-balancing auxiliary loss of Switch Transformer~\citep{fedus2021switch}, and $\calL_{\mathrm{pred}}$ is the predictability loss:
+\begin{equation}
+  \calL_{\mathrm{pred}} = \frac{1}{|\{(l,h)\}|}\sum_{h \in H}\sum_{l=1}^{L-h}\ \mathrm{CE}\!\left(\hat{z}_{l,h},\; y^{*}_{l+h}\right)
+  \label{eq:pred}
+\end{equation}
+with $H{=}\{1,2,4\}$, the outer factor averaging over all (layer, horizon)
+pairs, $\hat{z}_{l,h}$ the predictor logits from the layer-$l$ hidden state and $y^{*}_{l+h}$ a soft target placing uniform $1/k$ mass on the realized top-$k$ set at layer $l{+}h$. Because the realized top-$k$ targets are argmax-selected and non-differentiable, gradients from \cref{eq:pred} reach the backbone \emph{only} through hidden representations: the loss shapes representations, not router weights directly. Optional entropy or stickiness terms are added for controls.
+
+\subsection{Isolation protocol}
+\label{sec:protocol}
+
+A first-class methodological contribution is our isolation protocol, which mirrors deployment: freeze a trained backbone, train a \emph{fresh} predictor on it (2000--3000 steps), and compare against the same fresh-predictor protocol on the baseline backbone. This is exactly what an engine does when it trains its own predictor against a shipped model, and it prevents any co-adaptation between predictor and backbone from inflating the measured gain.
+
+\subsection{Metrics}
+\label{sec:metrics}
+
+We report hit@$k$ per horizon (top-$k$ set overlap $|\mathrm{pred} \cap \mathrm{true}|/k$); router entropy; adjacent-layer routing persistence; maximum expert utilization; validation LM loss on a fixed 16-batch held-out set drawn once before training and shared by every run; and zero-shot downstream accuracy on HellaSwag~\citep{zellers2019hellaswag}, ARC~\citep{clark2018arc}, and PIQA~\citep{bisk2020piqa} by length-normalized continuation logprob. Unless stated, all results use $n{=}3$ seeds (init + data order) and we report between-seed standard deviations.
 
 \section{Experiments}
 \label{sec:experiments}
 
-\subsection{Setup and main result (Table~\ref{tab:main})}
+\subsection{Setup and main result}
+\label{sec:main}
 
-Baseline ($\lambda{=}0$) vs joint ($\lambda{=}0.3$), 25M tokens, horizons
-$\{1,2,4\}$. Controls are fresh post-hoc predictors on the frozen baseline
-backbone; the joint row is the fresh-predictor-on-joint-backbone isolation
-configuration.
+We compare a baseline ($\lambda{=}0$) against joint training ($\lambda{=}0.3$) at 25M tokens, horizons $\{1,2,4\}$. Controls are fresh post-hoc predictors on the frozen baseline backbone; the joint row is the fresh-predictor-on-joint-backbone isolation configuration of \cref{sec:protocol}.
 
 \begin{table}[t]
-\centering
-\caption{hit@$k$ (between-seed std), fresh linear post-hoc predictor.
-Chance = 0.125.}
-\label{tab:main}
-\begin{tabular}{lcccc}
-\toprule
-backbone & $h{=}1$ & $h{=}2$ & $h{=}4$ & val LM \\
-\midrule
-baseline & 0.826 (0.003) & 0.797 (0.002) & 0.732 (0.004) & 5.767 (0.006) \\
-\textbf{joint ($\lambda{=}0.3$)} & \textbf{0.888 (0.002)} & \textbf{0.865 (0.002)} & \textbf{0.796 (0.004)} & 5.790 (0.006) \\
-\bottomrule
-\end{tabular}
+  \centering
+  \caption{\textbf{Main result.} Hit@$k$ of a fresh linear post-hoc predictor on frozen backbones (chance $=0.125$), with validation LM loss; mean (std) over 3 seeds. Joint training improves predictability at every horizon for a small quality cost.}
+  \label{tab:main}
+  \begin{tabular}{lcccc}
+    \toprule
+    Backbone & $h{=}1$ ($\uparrow$) & $h{=}2$ ($\uparrow$) & $h{=}4$ ($\uparrow$) & Val LM ($\downarrow$) \\
+    \midrule
+    Baseline ($\lambda{=}0$) & 0.826 (0.003) & 0.797 (0.002) & 0.732 (0.004) & 5.767 (0.006) \\
+    \midrule
+    Joint ($\lambda{=}0.3$) & \textbf{0.888} (0.002) & \textbf{0.865} (0.002) & \textbf{0.796} (0.004) & 5.790 (0.006) \\
+    \bottomrule
+  \end{tabular}
 \end{table}
 
-Under the stronger ranking-MLP control (3 seeds): baseline 0.903 (0.001) /
-0.865 (0.002) / 0.795 (0.001) vs joint \textbf{0.933 (0.002) / 0.907 (0.004)
-/ 0.847 (0.008)} --- the advantage compresses to \textbf{+2.9 $\pm$ 0.2 /
-+4.3 $\pm$ 0.3 / +5.2 $\pm$ 0.8 pts} (10--25$\times$ seed noise) but survives
-intact under an identical predictor. We report +6--7 (linear) and +3--5
-(ranking) as dual honest effect sizes throughout. Paired quality cost:
-+0.023 $\pm$ 0.009 nats; +0.033 $\pm$ 0.016 with data-order variance
-included.
+Under the stronger ranking-MLP control (3 seeds), baseline reaches 0.903 (0.001) / 0.865 (0.002) / 0.795 (0.001) at $h{=}1/2/4$ versus joint 0.933 (0.002) / 0.907 (0.004) / 0.847 (0.008): the advantage compresses to +2.9 $\pm$ 0.2 / +4.3 $\pm$ 0.3 / +5.2 $\pm$ 0.8 points (10--25$\times$ seed noise) but survives intact under an identical predictor. We therefore report +6--7 points (linear) and +3--5 points (ranking) as dual honest effect sizes. The paired quality cost is +0.023 $\pm$ 0.009 nats, or +0.033 $\pm$ 0.016 with data-order variance included.
 
-\subsection{The isolation test (C1)}
+\subsection{Isolation test: predictability lives in the weights}
+\label{sec:isolation}
 
-A fresh post-hoc predictor on the frozen joint backbone recovers the
-co-trained predictor's accuracy \emph{exactly} (0.890\slash 0.866\slash
-0.796 vs 0.887\slash 0.863\slash 0.793). The predictability is a property of the weights --- the
-deployable artifact.
+A fresh post-hoc predictor trained on the frozen joint backbone recovers the co-trained predictor's accuracy \emph{exactly}: 0.890/0.866/0.796 (fresh) versus 0.887/0.863/0.793 (co-trained) at $h{=}1/2/4$. Predictability is a property of the weights, not of predictor--backbone co-adaptation. This is the deployable artifact: an engine can ship the jointly-trained model and train its own predictor later, recovering the full gain.
 
-\subsection{Structure, not sharpening (C2, Figure~\ref{fig:frontier})}
-
-An entropy-penalty ladder ($\lambda_{\mathrm{ent}} \in \{0.005, 0.01,
-0.05\}$) plus the baseline and joint points, all evaluated with the
-ranking-MLP probe:
-
-hit@1 vs entropy: baseline (2.26, 0.903) $<$ $\lambda 0.005$ (1.62, 0.912)
-$<$ $\lambda 0.01$ (1.17, 0.916) $<$ \textbf{joint (2.10, 0.930)};
-near-collapse (0.28) reaches only 0.883 under the linear probe.
-Interpolating to the joint model's own entropy, sharpening alone yields
-${\sim}$0.906--0.910: \textbf{${\sim}$+2.0--2.4 pts of the joint advantage
-is pure structure} --- routing that is simultaneously informative and
-forecastable, not merely peaked.
+\subsection{Structure, not sharpening}
+\label{sec:frontier}
 
 \begin{figure}[t]
-\centering
-\includegraphics[width=\textwidth]{paper_figure.png}
-\caption{(left) The entropy-penalty frontier plateaus at ${\sim}$0.91 hit@1
-while the predictability-trained backbone reaches 0.930 at matched entropy;
-(right) decode throughput and misprefetch waste at Colibr\`i-like geometry
-(corrected simulator).}
-\label{fig:frontier}
+  \centering
+  \includegraphics[width=\textwidth]{paper_figure.png}
+  \caption{\textbf{Structure, not sharpening; predictability converts to throughput.} (left) The entropy-penalty frontier plateaus at $\sim$0.91 hit@1 while the predictability-trained backbone reaches 0.930 at matched entropy; (right) decode throughput and misprefetch waste at Colibri-like geometry (corrected simulator).}
+  \label{fig:frontier}
 \end{figure}
 
-\subsection{Robustness and growth with training (C3, Table~\ref{tab:robust})}
+One way to make routing easier to predict is to make it more peaked. To test whether our gain is merely sharpening, we train an entropy-penalty ladder $\lambda_{\mathrm{ent}} \in \{0.005, 0.01, 0.05\}$ alongside the baseline and joint models, all evaluated with the ranking-MLP probe (\cref{fig:frontier}). In (entropy, hit@1) coordinates: baseline (2.26, 0.903) $<$ $\lambda{=}0.005$ (1.62, 0.912) $<$ $\lambda{=}0.01$ (1.17, 0.916), while the joint model sits at (2.10, 0.930); a near-collapse penalty (entropy 0.28) reaches only 0.883 under the linear probe. Interpolating the penalty frontier to the joint model's own entropy, sharpening alone yields $\sim$0.906--0.910: roughly +2.0--2.4 points of the joint advantage is pure structure. The joint model's routing is simultaneously informative (high entropy) and forecastable---not merely peaked.
+
+\subsection{Robustness and growth with training}
+\label{sec:robust}
 
 \begin{table}[t]
-\centering
-\caption{Robustness of the joint advantage across variance axes and training
-length.}
-\label{tab:robust}
-\begin{tabular}{lcc}
-\toprule
- & +hit@$k$ vs control ($h{=}1$ / $h{=}4$) & quality cost \\
-\midrule
-25M tokens, init-only variance & +6.2 $\pm$ 0.4 / +6.4 $\pm$ 0.6 & +0.023 $\pm$ 0.009 nats \\
-25M tokens, init+data variance & +6.2 $\pm$ 0.3 / +6.8 $\pm$ 0.3 & +0.033 $\pm$ 0.016 nats \\
-\textbf{100M tokens (4$\times$)} & \textbf{+6.1 / +7.9} & \textbf{$-$0.019 nats (free)} \\
-\bottomrule
-\end{tabular}
+  \centering
+  \caption{\textbf{Robustness.} Joint-vs-control hit@$k$ advantage (points) and paired quality cost across variance sources and token counts. The advantage is stable to seed noise and grows at 4$\times$ tokens, where the quality cost disappears.}
+  \label{tab:robust}
+  \begin{tabular}{lccc}
+    \toprule
+    Configuration & $\Delta$ hit@$k$ $h{=}1$ & $\Delta$ hit@$k$ $h{=}4$ & Quality cost (nats) \\
+    \midrule
+    25M tokens, init-only variance & +6.2 $\pm$ 0.4 & +6.4 $\pm$ 0.6 & +0.023 $\pm$ 0.009 \\
+    25M tokens, init+data variance & +6.2 $\pm$ 0.3 & +6.8 $\pm$ 0.3 & +0.033 $\pm$ 0.016 \\
+    \midrule
+    \textbf{100M tokens (4$\times$)} & \textbf{+6.1} & \textbf{+7.9} & \textbf{$-$0.019 (free)} \\
+    \bottomrule
+  \end{tabular}
 \end{table}
 
-At 4$\times$ training the advantage \emph{grows} ($h4$ +7.9) and the quality
-cost disappears; baseline routers sharpen naturally with training (entropy
-2.26 $\to$ 1.98) and the joint model stays ahead. Zero-shot downstream
-accuracy (HellaSwag/ARC-Easy/ARC-Challenge/PIQA, $n{=}1000$ each) is at
-chance for both arms at 25M tokens (the model is too undertrained for task
-sensitivity; paired deltas $-$0.6 $\pm$ 1.0 pp across 12 seed$\times$benchmark
-pairs); at 100M tokens the joint model is at or above baseline on all four
-benchmarks.
+\Cref{tab:robust} shows the advantage is stable across init and data-order variance and \emph{grows} at 4$\times$ training ($h{=}4$: +7.9), where the quality cost disappears. Baseline routers sharpen naturally with training (entropy 2.26 $\to$ 1.98), yet the joint model stays ahead. Zero-shot downstream accuracy (HellaSwag, ARC-Easy, ARC-Challenge, PIQA; $n{=}1000$ each) is at chance for both arms at 25M tokens---the model is too undertrained for task sensitivity; paired deltas are $-0.6 \pm 1.0$ pp across 12 seed$\times$benchmark pairs. At 100M tokens the joint model is at or above baseline on all four benchmarks.
 
 \subsection{Degeneracy checks}
+\label{sec:degeneracy}
 
-At $\lambda{=}0.3$: entropy $-$9\% (no collapse), adjacent-layer persistence
-$\approx$ chance (no temporal copying), utilization unchanged,
-token-ID$\to$expert lookup probe equal in both backbones (no memorization),
-marginal expert usage near-uniform (popularity trivial predictor hits 0.15).
-At $\lambda{=}1.0$ the degenerate mode appears measurably: entropy $-$28\%
-and +0.62 nats quality cost --- the frontier turns, visible in our
-diagnostics.
+At $\lambda{=}0.3$ we find no degenerate behavior: router entropy drops only 9\% (no collapse), adjacent-layer routing persistence stays at chance (no temporal copying), expert utilization is unchanged, a token-ID$\to$expert lookup probe performs equally on both backbones (no memorization), and marginal expert usage is near-uniform (a popularity-trivial predictor hits only 0.15). At $\lambda{=}1.0$ the degenerate mode appears measurably---entropy $-$28\% and a +0.62 nats quality cost---so the frontier turns, and the turn is visible in our diagnostics.
 
-\subsection{Training-time baseline: StickyMoE (Table~\ref{tab:sticky})}
+\subsection{StickyMoE control}
 \label{sec:sticky}
 
 \begin{table}[t]
-\centering
-\caption{StickyMoE-style routing-consistency sweep (post-hoc linear probe on
-each backbone). The consistency loss monotonically \emph{reduces} lookahead
-predictability while raising router entropy.}
-\label{tab:sticky}
-\begin{tabular}{lccccc}
-\toprule
-arm & $h{=}1$ & $h{=}2$ & $h{=}4$ & entropy & val LM \\
-\midrule
-baseline & 0.822 & 0.791 & 0.724 & 2.264 & 5.949 \\
-sticky 0.3 & 0.808 & 0.774 & 0.707 & 2.485 & 5.945 \\
-sticky 1.0 & 0.793 & 0.754 & 0.682 & 2.599 & 5.957 \\
-sticky 3.0 & 0.774 & 0.734 & 0.658 & 2.676 & 5.976 \\
-\bottomrule
-\end{tabular}
+  \centering
+  \caption{\textbf{StickyMoE control.} Hit@$k$ of a post-hoc linear probe on backbones trained with our reimplementation of the StickyMoE routing-consistency loss. The consistency loss monotonically \emph{reduces} lookahead predictability while raising router entropy.}
+  \label{tab:sticky}
+  \begin{tabular}{lccccc}
+    \toprule
+    Backbone & $h{=}1$ ($\uparrow$) & $h{=}2$ ($\uparrow$) & $h{=}4$ ($\uparrow$) & Entropy & Val LM ($\downarrow$) \\
+    \midrule
+    Baseline & 0.822 & 0.791 & 0.724 & 2.264 & 5.949 \\
+    Sticky 0.3 & 0.808 & 0.774 & 0.707 & 2.485 & 5.945 \\
+    Sticky 1.0 & 0.793 & 0.754 & 0.682 & 2.599 & 5.957 \\
+    Sticky 3.0 & 0.774 & 0.734 & 0.658 & 2.676 & 5.976 \\
+    \bottomrule
+  \end{tabular}
 \end{table}
 
-A routing-consistency loss (our reimplementation of StickyMoE's objective)
-\emph{monotonically reduces} lookahead hit@$k$ while raising router entropy,
-and does not stack with our loss (0.864 vs 0.884 joint-only). Scope: we
-tested only lookahead predictability; StickyMoE's actual target ---
-temporal-reuse cache locality --- is orthogonal and untested here.
+\Cref{tab:sticky} shows that the consistency loss (our reimplementation of StickyMoE's objective) monotonically reduces lookahead hit@$k$ while raising router entropy, and does not stack with our loss (0.864 vs.\ 0.884 joint-only at $h{=}1$). Temporal stickiness and lookahead forecastability are different---and here opposed---properties. Scope: we tested only lookahead predictability; StickyMoE's actual target, temporal-reuse cache locality, is orthogonal and untested here.
 
 \section{Systems Analysis}
+\label{sec:systems}
 
-\paragraph{Simulator.} A trace-driven engine with an honest single-disk FIFO
-queue (demand-priority; prefetch issued only into idle compute windows that
-fit the fetch; bandwidth conservation is exact). Synthetic Colibr\`i
-geometry: 75$\times$256 experts, top-8, 19 MB int4 experts, 4 ms/layer dense
-compute, $C{=}2000$-expert cache, Zipf+locality routing, predictor
-accuracies measured in \S\ref{sec:experiments}.
+\paragraph{Simulator.} We use a trace-driven engine simulator with an honest single-disk FIFO queue: demand fetches have priority, prefetch is issued only into idle compute windows that fit the fetch, and bandwidth conservation is exact. We configure a synthetic Colibri geometry: 75 layers $\times$ 256 experts, top-8 routing, 19\,MB int4 experts, 4\,ms/layer dense compute, a $C{=}2000$-expert cache, Zipf+locality routing, and predictor accuracies from \cref{sec:experiments}.
 
-\paragraph{Throughput (prefetch $h{=}1$).} demand 0.876 $\to$ base-control
-1.051 $\to$ joint 1.085 $\to$ oracle 1.161 tok/s (linear-control
-accuracies): \textbf{+3.2\% joint vs base, $-$31\% misprefetch waste (24.0
-vs 34.6 MB/tok)}, ${\sim}$31\% of the base-to-oracle headroom captured. At
-ranking-control accuracies (0.903 vs 0.933, 3-seed): \textbf{+1.6\% and
-$-$27\% waste} --- the conversion paired with the honest effect size. TTFT
-(cold cache): $-$11\% from prediction generally, $-$1--3\% joint vs base ---
-not the differentiator.
+\paragraph{Throughput.} With prefetch at $h{=}1$, decode throughput runs demand 0.876 $\to$ base-control 1.051 $\to$ joint 1.085 $\to$ oracle 1.161 tok/s (linear-control accuracies): +3.2\% joint over base, $-$31\% misprefetch waste (24.0 vs.\ 34.6 MB/tok), capturing $\sim$31\% of the base-to-oracle headroom. At ranking-control accuracies (0.903 vs.\ 0.933, 3 seeds) the conversion is +1.6\% and $-$27\% waste---the honest effect size paired with its honest systems value. TTFT (cold cache) improves $-$11\% from prediction generally but only $-$1--3\% joint vs.\ base: it is not the differentiator.
 
-\paragraph{Gating condition.} Across a 3$\times$3 latency/bandwidth grid the
-joint-vs-base uplift is stable (+2.9--3.2\%) whenever prefetch fires; below
-${\sim}$5 GB/s (19 MB expert), fetch time exceeds the compute window and
-\emph{no} prefetch is possible: \textbf{bandwidth, not latency, gates the
-regime} --- a design constraint for engines exploiting trained
-predictability.
+\paragraph{Gating condition.} Across a 3$\times$3 latency/bandwidth grid, the joint-vs-base uplift is stable (+2.9--3.2\%) whenever prefetch fires. Below $\sim$5\,GB/s (for 19\,MB experts) fetch time exceeds the compute window and \emph{no} prefetch is possible: bandwidth, not latency, gates the regime.
 
-\paragraph{Real engine.} A purpose-built O\_DIRECT disk-resident engine for
-the toy model (192 experts $\times$ 2.88 MB, demand-priority disk queue,
-post-hoc predictor driving a prefetch thread, cache budget $C{=}64$): joint
-vs base backbone, deployable configuration, 6 decode sequences:
-\textbf{+5.0\% mean tok/s (range $-$7\% to +14.5\%)}, consistent with the
-simulator's direction and magnitude; per-sequence variance is large at toy
-scale, so we treat this as qualitative confirmation and keep the
-quantitative claim on the simulator.
+\paragraph{Real engine.} We built a purpose-built O\_DIRECT disk-resident engine for the toy model (192 experts $\times$ 2.88\,MB, demand-priority disk queue, post-hoc predictor driving a prefetch thread, cache budget $C{=}64$) and compared joint vs.\ base backbones in the deployable configuration over 6 decode sequences: +5.0\% mean tok/s (range $-$7\% to +14.5\%). Per-sequence variance is large at toy scale, so we treat this as qualitative confirmation consistent with the simulator's direction and magnitude; the quantitative claim stays on the simulator.
 
-\section{Boundary: the method is pretraining-time (Table~\ref{tab:tierc})}
-
-OLMoE-1B-7B \cite{muennighoff2024olmoe} (64 experts top-8, 3T pretraining
-tokens), LoRA r16 on attention+experts plus trainable routers,
-$\lambda \in \{0.1, 1.0\}$, 25M tokens:
+\section{Boundary: Pretraining-Time Only}
+\label{sec:boundary}
 
 \begin{table}[t]
-\centering
-\caption{Tier C isolation test on OLMoE-1B-7B (hit@$k$ at $h{=}1$/$h{=}2$/$h{=}4$).
-At $\lambda{=}0.1$ the fine-tune leaves backbone predictability unchanged;
-at 10$\times$ pressure a small transfer appears, still far weaker than
-pretraining.}
-\label{tab:tierc}
-\begin{tabular}{lccc}
-\toprule
-post-hoc probe & on baseline backbone & on joint ($\lambda{=}0.1$) & on joint ($\lambda{=}1.0$) \\
-\midrule
-linear & 0.799 / 0.781 / 0.752 & 0.800 / 0.783 / 0.755 & 0.812 / 0.799 / 0.778 \\
-ranking-MLP (177M) & 0.845 / 0.801 / 0.739 & 0.845 / 0.801 / 0.741 & 0.847 / 0.807 / 0.753 \\
-\bottomrule
-\end{tabular}
+  \centering
+  \caption{\textbf{Boundary result.} Hit@$k$ of post-hoc probes on OLMoE-1B-7B backbones after LoRA fine-tuning with predictability pressure. At $\lambda{=}0.1$ the isolation test is a tie; at 10$\times$ pressure a small effect appears, 2.5--5$\times$ weaker than the pretraining effect.}
+  \label{tab:tierc}
+  \begin{tabular}{lccc}
+    \toprule
+    Post-hoc probe & Baseline backbone & Joint ($\lambda{=}0.1$) & Joint ($\lambda{=}1.0$) \\
+    \midrule
+    Linear $h{=}1/2/4$ & 0.799 / 0.781 / 0.752 & 0.800 / 0.783 / 0.755 & 0.812 / 0.799 / 0.778 \\
+    Ranking-MLP (177M) $h{=}1/2/4$ & 0.845 / 0.801 / 0.739 & 0.845 / 0.801 / 0.741 & 0.847 / 0.807 / 0.753 \\
+    \bottomrule
+  \end{tabular}
 \end{table}
 
-At the lower pressure ($\lambda{=}0.1$) the isolation test is a tie under
-both probes. At 10$\times$ pressure ($\lambda{=}1.0$) a small backbone
-effect appears --- +1.3/+1.8/+2.6 pts under the linear probe, +0.2/+0.6/+1.4
-under the ranking probe, growing with horizon --- at +0.011 nats and with
-router entropy flat (3.719 vs 3.748, so not sharpening). But this remains
-\textbf{2.5--5$\times$ weaker than the pretraining effect under the linear
-probe} (and more under the ranking probe, whose ceiling leaves less room):
-the boundary is dose-dependent, not a strict zero, and the pretraining
-regime is qualitatively different. We read this as \textbf{boundary mapping,
-not failure}: representations must be shaped while plastic; the entire
-training-time prior-art family (StickyMoE, Oracle-MoE) shares the property.
-Scope of the negative: one seed, one LoRA rank, one token count (two
-$\lambda$ values); heavier fine-tuning (unfrozen blocks, full FT) is
-untested. Note also the baseline itself: a post-hoc predictor on stock OLMoE
-reaches 0.845 $h{=}1$ --- post-hoc predictors are strong on real models, and
-that is the bar any pretraining application must clear.
+Does the method work as a fine-tune on an already-pretrained model? We take OLMoE-1B-7B~\citep{muennighoff2024olmoe} (64 experts, top-8, 3T pretraining tokens), apply LoRA r16 on attention and experts plus trainable routers, and train 25M tokens at $\lambda \in \{0.1, 1.0\}$ (\cref{tab:tierc}). At $\lambda{=}0.1$ the isolation test is a tie under both probes. At 10$\times$ pressure a small backbone effect appears---+1.3/+1.8/+2.6 points under the linear probe and +0.2/+0.6/+1.4 under the ranking probe, growing with horizon---at +0.011 nats quality cost and flat router entropy (3.719 vs.\ 3.748, so not sharpening). But this is 2.5--5$\times$ weaker than the pretraining effect under the linear probe (and more under the ranking probe, whose ceiling leaves less room): the boundary is dose-dependent, not a strict zero, and the pretraining regime is qualitatively different. For completeness, the \emph{co-trained} predictor at this scale reaches 0.842/0.822/0.794 ($\lambda{=}0.1$) and 0.844/0.826/0.802 ($\lambda{=}1.0$) at $h{=}1/2/4$; its edge over a fresh post-hoc probe on the \emph{same} backbone (+4.2 and +3.2 points at $h{=}1$) is predictor--backbone co-adaptation, which does not survive predictor retraining---the deployable configuration. The narrowing gap at 10$\times$ pressure corroborates that the added pressure moved into the backbone, not just the predictor.
+
+We read this as boundary mapping, not failure: representations must be shaped while plastic, a property the entire training-time prior-art family (StickyMoE, Oracle-MoE) shares. Scope of the negative: one seed, one LoRA rank, one token count (two $\lambda$ values); heavier fine-tuning (unfrozen blocks, full FT) is untested. Baseline note: a post-hoc predictor on stock OLMoE already reaches 0.845 hit@1---post-hoc predictors are strong on real models, and that is the bar any pretraining application must clear.
 
 \section{Limitations}
+\label{sec:limitations}
 
-Positive evidence is one toy from-scratch model (341M, 16 experts,
-FineWeb-edu only, $\le$100M tokens); systems numbers are simulator +
-toy-engine, not a production engine; quality is val-LM plus chance-level
-zero-shot downstream probes (no consistent joint deficit at 25M tokens;
-joint $\ge$ baseline on all four benchmarks at 100M tokens) --- task
-sensitivity at this scale is limited; $n{=}3$; the ranking control is our
-reimplementation of \cite{zhu2025preattention}'s protocol; StickyMoE was
-tested on our metric only; the Tier C boundary rests on one seed / LoRA rank
-/ token count (two $\lambda$ values). At toy $B{=}8$/$C{=}64$ the joint
-engine row slightly exceeds the oracle (97.9 vs 97.4 tok/s) --- a
-queue-interaction effect consistent with the waste ordering (oracle issues
-more prefetch traffic), noted for completeness.
+Our positive results rest on one toy from-scratch model (341M parameters, 16 experts, FineWeb-edu only, $\le$100M tokens). Systems numbers come from a simulator plus a toy engine, not a production engine. Quality is measured by validation LM loss plus chance-level zero-shot downstream probes: we find no consistent joint deficit at 25M tokens and joint $\ge$ baseline on all four benchmarks at 100M tokens, but task sensitivity at this scale is limited. Most results use $n{=}3$ seeds. The ranking control is our reimplementation of the protocol of \citet{zhu2025preattention}; StickyMoE is tested on our metric only; and the Tier C boundary rests on one seed, one LoRA rank, and one token count (two $\lambda$ values). Finally, at toy $B{=}8/C{=}64$ the joint engine row slightly exceeds the oracle (97.9 vs.\ 97.4 tok/s)---a queue-interaction effect consistent with the waste ordering (the oracle issues more prefetch traffic), noted for completeness.
 
 \section{Conclusion}
+\label{sec:conclusion}
 
-Predictability is trainable: an MoE optimized jointly for output quality and
-for the accuracy of an independent expert-activation predictor becomes
-measurably, structurally, and transferably more forecastable --- and the
-gain converts to throughput and waste reductions wherever an engine has disk
-slack. The effect must be baked in during pretraining. For pretraining labs
-targeting disk-resident deployment, predictability pressure is a cheap
-($\lambda \approx 0.3$), quality-neutral auxiliary objective; for engine
-authors, the result defines what a shipped model can make recoverable. Data,
-code, and the full audit trail (including three red-team rounds and all
-negative results) are available in the repository:
-\url{https://github.com/splch/predictability-aware-training}.
+Predictability is trainable: an MoE optimized jointly for output quality and for the accuracy of an independent expert-activation predictor becomes measurably, structurally, and transferably more forecastable---and the gain converts to throughput and waste reductions wherever an engine has disk slack. The effect must be baked in during pretraining. For pretraining labs targeting disk-resident deployment, predictability pressure is a cheap ($\lambda \approx 0.3$) auxiliary objective whose quality cost is small and vanishes with training; for engine authors, our result defines what a shipped model can make recoverable. The open question is scale: whether the effect persists at production expert counts and pretraining token budgets, and whether heavier fine-tuning (unfrozen blocks, full fine-tuning) can move the boundary. Data, code, and the full audit trail (including three red-team rounds and all negative results) are available at \url{https://github.com/splch/predictability-aware-training}.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
