@@ -43,11 +43,12 @@ backbone (the SOTA deployment pattern).
   waste** over the post-hoc control at Colibri-like geometry (Exp 5,
   corrected after red-team round 2).
 - **Boundary result (Tier C)**: the effect is pretraining-time only. A LoRA
-  fine-tune on pretrained OLMoE-1B-7B raised the co-trained predictor but
-  left the backbone's intrinsic predictability unchanged (isolation test:
-  0.800 vs 0.799) — the method must be applied during pretraining, not
-  retrofitted (Exp 10).
-- Full details in [RESULTS.md](RESULTS.md) (7 experiments, 2 red-team
+  fine-tune on pretrained OLMoE-1B-7B at Exp-10 pressure left the backbone's
+  intrinsic predictability unchanged (isolation test: 0.800 vs 0.799); at
+  10x pressure a small transfer appears (+1.3-2.6 pts linear probe) but
+  remains 3-5x weaker than the pretraining effect — the method must be
+  applied during pretraining, not retrofitted (Exps 10, 13).
+- Full details in [RESULTS.md](RESULTS.md) (13 experiments, 3 red-team
   rounds); literature landscape in [RESEARCH.md](RESEARCH.md); method in
   [PLAN.md](PLAN.md).
 
@@ -93,5 +94,6 @@ regenerate them via the scripts above.
 
 Complete: Tier A mechanism (3-seed), isolation test, sharpening control,
 StickyMoE baseline, 4x-training run, cache simulator + TTFT + sensitivity,
-real-engine demo, Tier C OLMoE boundary. See RESULTS.md (11 experiments).
+real-engine demo, Tier C OLMoE boundary (two lambda values), downstream
+zero-shot quality eval. See RESULTS.md (13 experiments).
 Next: workshop writeup.

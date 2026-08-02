@@ -561,3 +561,43 @@ training length the joint model is downstream-neutral-to-positive. The
 too weak for these tasks to be sensitive instruments.
 
 Artifacts: eval_downstream.py, downstream_ckpt_*.json, artifacts/run_downstream.log
+
+## Experiment 13: Tier C dose-response — lambda=1.0 fine-tune (2026-08-01)
+
+Exp 10's isolation failure rested on one lambda (0.1). This arm repeats the
+exact Exp 10 protocol at **10x predictability pressure** (lambda_pred=1.0,
+LoRA r16, 25M tokens, seed 0), plus both isolation probes on the new
+backbone.
+
+| post-hoc probe (h=1 / h=2 / h=4) | on base backbone | on lam0.1 joint | on lam1.0 joint |
+|---|---|---|---|
+| linear | 0.799 / 0.781 / 0.752 | 0.800 / 0.783 / 0.755 | **0.812 / 0.799 / 0.778** |
+| ranking-MLP (177M) | 0.845 / 0.801 / 0.739 | 0.845 / 0.801 / 0.741 | **0.847 / 0.807 / 0.753** |
+| (co-trained predictor) | — | 0.842 / 0.822 / 0.794 | 0.844 / 0.826 / 0.802 |
+
+Diagnostics (lam1.0): val LM 2.124 vs 2.113 base (+0.011 nats); router
+entropy 3.719 vs 3.748 (-0.8%, no collapse); persistence/utilization flat.
+
+Findings:
+1. **The boundary is dose-dependent, not a strict zero**: 10x pressure moves
+   backbone predictability +1.3/+1.8/+2.6 pts under the linear probe
+   (+0.2/+0.6/+1.4 under the ranking probe, whose higher ceiling leaves less
+   room). The "intervention too weak along the loss-weight axis" reading of
+   Exp 10 is dead — more pressure buys a little, not nothing.
+2. **But the effect is 3-5x weaker than pretraining**: at matched probe, Tier
+   A pretraining buys +6-7 pts (linear) / +3-4 pts (ranking); a 25M-token
+   LoRA fine-tune at 10x pressure buys +1.3-2.6 / +0.2-1.4. The pretraining
+   regime remains qualitatively different.
+3. The co-adaptation gap shrank (co-trained minus posthoc: +3.2/+2.7/+2.4 at
+   lam1.0 vs +4.3/+4.1/+4.2 at lam0.1) — pressure went into the backbone,
+   not just the predictor.
+4. Quality and entropy are intact at lam1.0 (+0.011 nats, -0.8% entropy):
+   the small transfer is not sharpening.
+
+Revised claim language: a LoRA fine-tune on a 3T-token model transfers only a
+fraction of the predictability effect even at 10x loss pressure; the method's
+full effect is pretraining-time. Remaining scope caveat: still one seed, one
+LoRA rank, one token count; unfrozen-block / full-FT fine-tuning untested.
+
+Artifacts: ckpt_C_lam1.0{,_posthoc,_posthoc_rank}.pt; scripts/run_tierC_lam1.sh;
+artifacts/run_tierC_lam1.log

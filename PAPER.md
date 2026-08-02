@@ -27,8 +27,9 @@ at any strength cannot reach it at matched entropy; (iii) it **grows with
 training** while its quality cost vanishes; and (iv) it converts to systems
 value (+3.2% tok/s, −31% misprefetch waste in a disk-queue-accurate
 simulator; +5.0% mean tok/s in a purpose-built real engine). Finally we map
-the boundary: a LoRA fine-tune on pretrained OLMoE-1B-7B leaves backbone
-predictability unchanged, indicating the method is **pretraining-time only**.
+the boundary: a LoRA fine-tune on pretrained OLMoE-1B-7B transfers only a
+small fraction of the effect even at 10x loss pressure, indicating the method
+is **pretraining-time only**.
 
 ## 1. Introduction
 
@@ -66,7 +67,9 @@ Contributions, each matched to an exhibit:
   +3.2% tok/s and −31% misprefetch waste over the post-hoc control at
   Colibri-like geometry (+1.5%/−25% at ranking-control accuracies), gated by
   fetch_time ≤ compute_window; +5.0% mean tok/s in a real O_DIRECT engine;
-  and the effect does not retrofit via LoRA onto a pretrained model (Table 3).
+  and a LoRA fine-tune on a pretrained model recovers only a fraction of the
+effect even at 10x loss pressure — the method is pretraining-time only
+(Table 3).
 
 ## 2. Related Work
 
@@ -246,18 +249,23 @@ qualitative confirmation and keep the quantitative claim on the simulator.
 OLMoE-1B-7B (64 experts top-8, 3T pretraining tokens), LoRA r16 on
 attention+experts plus trainable routers, λ=0.1, 25M tokens:
 
-| post-hoc probe | on baseline backbone | on joint backbone |
-|---|---|---|
-| linear | 0.799 / 0.781 / 0.752 | 0.800 / 0.783 / 0.755 |
-| ranking-MLP (177M) | 0.845 / 0.801 / 0.739 | 0.845 / 0.801 / 0.741 |
+| post-hoc probe | on baseline backbone | on joint backbone (λ=0.1) | on joint backbone (λ=1.0) |
+|---|---|---|---|
+| linear | 0.799 / 0.781 / 0.752 | 0.800 / 0.783 / 0.755 | 0.812 / 0.799 / 0.778 |
+| ranking-MLP (177M) | 0.845 / 0.801 / 0.739 | 0.845 / 0.801 / 0.741 | 0.847 / 0.807 / 0.753 |
 
-(h=1 / h=2 / h=4). A tie under both a weak and a strong probe: the
-fine-tune did not move backbone predictability (router entropy 3.745 vs
-3.748). We read this as **boundary mapping, not failure**: representations
-must be shaped while plastic; the entire training-time prior-art family
-(StickyMoE, Oracle-MoE) shares the property. Scope of the negative: one
-seed, one λ, one LoRA rank; heavier fine-tuning (unfrozen blocks, full FT)
-is untested. Note also the baseline itself: a post-hoc predictor on stock
+(h=1 / h=2 / h=4). At the Exp 10 pressure (λ=0.1) the isolation test is a
+tie under both probes. At 10x pressure (λ=1.0) a small backbone effect
+appears — +1.3/+1.8/+2.6 pts under the linear probe, +0.2/+0.6/+1.4 under
+the ranking probe, growing with horizon — at +0.011 nats and with router
+entropy flat (3.719 vs 3.748, so not sharpening). But this remains **3–5x
+weaker than the pretraining effect** at matched probe (+6–7 linear, +3–4
+ranking, Tier A): the boundary is dose-dependent, not a strict zero, and the
+pretraining regime is qualitatively different. We read this as **boundary
+mapping, not failure**: representations must be shaped while plastic; the
+entire training-time prior-art family (StickyMoE, Oracle-MoE) shares the
+property. Scope of the negative: one seed, one LoRA rank, one token count
+(two λ values); heavier fine-tuning (unfrozen blocks, full FT) is untested. Note also the baseline itself: a post-hoc predictor on stock
 OLMoE reaches 0.845 h=1 — post-hoc predictors are strong on real models,
 and that is the bar any pretraining application must clear.
 
@@ -269,8 +277,8 @@ not a production engine; quality is val-LM plus chance-level zero-shot downstrea
 no consistent joint deficit at 25M tokens; joint >= baseline on all four
 benchmarks at 100M tokens) — task sensitivity at this scale is limited; n=3;
 the ranking control is our reimplementation of 2511.10676's protocol;
-StickyMoE was tested on our metric only; the Tier C negative is a single
-configuration. At toy B=8/C=64 the joint engine row slightly exceeds the
+StickyMoE was tested on our metric only; the Tier C boundary rests on one seed / LoRA rank / token count (two λ
+values). At toy B=8/C=64 the joint engine row slightly exceeds the
 oracle (97.9 vs 97.4 tok/s) — a queue-interaction effect consistent with the
 waste ordering (oracle issues more prefetch traffic), noted for
 completeness.
