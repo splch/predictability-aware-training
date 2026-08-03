@@ -30,6 +30,8 @@
 
 \begin{document}
 \maketitle
+{\renewcommand{\thefootnote}{}\footnotetext{\copyright\ 2026 Spencer Churchill. This work is licensed under a Creative Commons Attribution 4.0 International License (CC BY 4.0): \url{https://creativecommons.org/licenses/by/4.0/}}
+\setcounter{footnote}{0}}
 
 \begin{abstract}
 Inference engines such as Colibri run 744B-parameter MoE models on consumer hardware by keeping the dense backbone resident and streaming expert weights from disk on demand---a reactive design whose throughput is bounded by fetch latency. Post-hoc predictors forecast expert activations from earlier hidden states, but they chase a model that was never asked to be predictable. We instead fold the accuracy of a small expert-activation predictor into the MoE's own training loss, optimizing the model jointly for output quality and for being forecastable. At 341M-parameter scale we find: (i) predictability is a trainable, transferable backbone property---a fresh post-hoc predictor on the frozen jointly-trained backbone recovers the full gain (+6--7 points top-$k$ hit rate over a linear control, +2.9--5.2 points over a ranking-aware control; both 3 seeds); (ii) the gain is structural, not sharpening---entropy penalties at any strength cannot reach it at matched entropy; (iii) it grows with training while its quality cost vanishes; and (iv) it converts to systems value (+3.2\% tok/s and $-$31\% misprefetch waste in a disk-queue-accurate simulator; +5.0\% mean tok/s in a real engine). Finally, we map the boundary: a LoRA fine-tune on pretrained OLMoE-1B-7B transfers only a small fraction of the effect even at 10$\times$ loss pressure---the method is pretraining-time only.
